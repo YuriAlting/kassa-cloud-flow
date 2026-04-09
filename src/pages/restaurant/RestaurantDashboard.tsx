@@ -47,6 +47,7 @@ export default function RestaurantDashboard() {
     { label: 'Categorieën', path: '/restaurant/categories', icon: Tag },
     { label: 'Betaalmethoden', path: '/restaurant/payments', icon: CreditCard },
     { label: 'Bestellingen', path: '/restaurant/orders', icon: ShoppingCart },
+    { label: 'POS Kassa', path: '/pos/bestelling', icon: Monitor },
   ];
 
   return (
