@@ -164,7 +164,14 @@ export default function PosBestelling() {
                 <motion.button
                   key={item.id}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => store.addItem({ id: item.id, name: item.name, price: item.price })}
+                  onClick={() => {
+                    const opts = productOptions[item.id];
+                    if (opts && opts.length > 0) {
+                      setOptionsModal({ item });
+                    } else {
+                      store.addItem({ id: item.id, name: item.name, price: item.price });
+                    }
+                  }}
                   className="surface surface-hover p-4 text-left"
                 >
                   <p className="font-medium text-sm leading-tight">{item.name}</p>
