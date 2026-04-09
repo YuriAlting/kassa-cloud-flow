@@ -10,6 +10,7 @@ import PosDashboard from "./pages/pos/PosDashboard";
 import PosBestelling from "./pages/pos/PosBestelling";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminFloorPlan from "./pages/admin/AdminFloorPlan";
 import RestaurantDashboard from "./pages/restaurant/RestaurantDashboard";
 import DashboardRouter from "./pages/restaurant/DashboardRouter";
 import MenuPage from "./pages/restaurant/MenuPage";
@@ -46,6 +47,7 @@ const App = () => (
             {/* Superadmin */}
             <Route path="/admin" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/plattegrond" element={<AdminFloorPlan />} />
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />
           </Routes>
