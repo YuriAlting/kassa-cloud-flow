@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -23,15 +23,14 @@ export default function AdminLogin() {
       return;
     }
 
-    // Check superadmin role
-    const { data: roleData } = await supabase
-      .from('user_roles')
+    // Check superadmin role via profiles
+    const { data: profile } = await supabase
+      .from('profiles')
       .select('role')
-      .eq('user_id', data.user.id)
-      .eq('role', 'superadmin')
+      .eq('id', data.user.id)
       .single();
 
-    if (!roleData) {
+    if (!profile || profile.role !== 'superadmin') {
       setError('Geen toegang');
       await supabase.auth.signOut();
       setLoading(false);

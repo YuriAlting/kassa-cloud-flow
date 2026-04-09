@@ -2,32 +2,29 @@ import { create } from 'zustand';
 
 export interface OrderItem {
   id: string;
-  product_id: string;
-  naam: string;
-  prijs: number;
-  aantal: number;
+  menu_item_id: string;
+  name_snapshot: string;
+  unit_price: number;
+  quantity: number;
   notitie?: string;
 }
 
 interface PosState {
   restaurantId: string | null;
-  restaurantNaam: string | null;
-  medewerkerId: string | null;
-  medewerkerNaam: string | null;
-  selectedTafelId: string | null;
-  selectedTafelNaam: string | null;
+  restaurantName: string | null;
+  profileId: string | null;
+  profileName: string | null;
   orderItems: OrderItem[];
   orderNotitie: string;
   korting: number;
   kortingType: 'percentage' | 'vast' | null;
 
-  setRestaurant: (id: string, naam: string) => void;
-  setMedewerker: (id: string, naam: string) => void;
-  setTafel: (id: string | null, naam: string | null) => void;
-  addItem: (product: { id: string; naam: string; prijs: number }) => void;
-  removeItem: (productId: string) => void;
-  updateItemQuantity: (productId: string, delta: number) => void;
-  setItemNotitie: (productId: string, notitie: string) => void;
+  setRestaurant: (id: string, name: string) => void;
+  setProfile: (id: string, name: string) => void;
+  addItem: (product: { id: string; name: string; price: number }) => void;
+  removeItem: (menuItemId: string) => void;
+  updateItemQuantity: (menuItemId: string, delta: number) => void;
+  setItemNotitie: (menuItemId: string, notitie: string) => void;
   setKorting: (korting: number, type: 'percentage' | 'vast' | null) => void;
   setOrderNotitie: (notitie: string) => void;
   clearOrder: () => void;
@@ -38,27 +35,24 @@ interface PosState {
 
 export const usePosStore = create<PosState>((set, get) => ({
   restaurantId: null,
-  restaurantNaam: null,
-  medewerkerId: null,
-  medewerkerNaam: null,
-  selectedTafelId: null,
-  selectedTafelNaam: null,
+  restaurantName: null,
+  profileId: null,
+  profileName: null,
   orderItems: [],
   orderNotitie: '',
   korting: 0,
   kortingType: null,
 
-  setRestaurant: (id, naam) => set({ restaurantId: id, restaurantNaam: naam }),
-  setMedewerker: (id, naam) => set({ medewerkerId: id, medewerkerNaam: naam }),
-  setTafel: (id, naam) => set({ selectedTafelId: id, selectedTafelNaam: naam }),
+  setRestaurant: (id, name) => set({ restaurantId: id, restaurantName: name }),
+  setProfile: (id, name) => set({ profileId: id, profileName: name }),
 
   addItem: (product) => {
     const items = get().orderItems;
-    const existing = items.find(i => i.product_id === product.id);
+    const existing = items.find(i => i.menu_item_id === product.id);
     if (existing) {
       set({
         orderItems: items.map(i =>
-          i.product_id === product.id ? { ...i, aantal: i.aantal + 1 } : i
+          i.menu_item_id === product.id ? { ...i, quantity: i.quantity + 1 } : i
         ),
       });
     } else {
@@ -67,39 +61,39 @@ export const usePosStore = create<PosState>((set, get) => ({
           ...items,
           {
             id: crypto.randomUUID(),
-            product_id: product.id,
-            naam: product.naam,
-            prijs: product.prijs,
-            aantal: 1,
+            menu_item_id: product.id,
+            name_snapshot: product.name,
+            unit_price: product.price,
+            quantity: 1,
           },
         ],
       });
     }
   },
 
-  removeItem: (productId) =>
-    set({ orderItems: get().orderItems.filter(i => i.product_id !== productId) }),
+  removeItem: (menuItemId) =>
+    set({ orderItems: get().orderItems.filter(i => i.menu_item_id !== menuItemId) }),
 
-  updateItemQuantity: (productId, delta) => {
+  updateItemQuantity: (menuItemId, delta) => {
     const items = get().orderItems;
-    const item = items.find(i => i.product_id === productId);
+    const item = items.find(i => i.menu_item_id === menuItemId);
     if (!item) return;
-    const newQty = item.aantal + delta;
+    const newQty = item.quantity + delta;
     if (newQty <= 0) {
-      set({ orderItems: items.filter(i => i.product_id !== productId) });
+      set({ orderItems: items.filter(i => i.menu_item_id !== menuItemId) });
     } else {
       set({
         orderItems: items.map(i =>
-          i.product_id === productId ? { ...i, aantal: newQty } : i
+          i.menu_item_id === menuItemId ? { ...i, quantity: newQty } : i
         ),
       });
     }
   },
 
-  setItemNotitie: (productId, notitie) =>
+  setItemNotitie: (menuItemId, notitie) =>
     set({
       orderItems: get().orderItems.map(i =>
-        i.product_id === productId ? { ...i, notitie } : i
+        i.menu_item_id === menuItemId ? { ...i, notitie } : i
       ),
     }),
 
@@ -112,12 +106,10 @@ export const usePosStore = create<PosState>((set, get) => ({
       orderNotitie: '',
       korting: 0,
       kortingType: null,
-      selectedTafelId: null,
-      selectedTafelNaam: null,
     }),
 
   getSubtotaal: () =>
-    get().orderItems.reduce((sum, i) => sum + i.prijs * i.aantal, 0),
+    get().orderItems.reduce((sum, i) => sum + i.unit_price * i.quantity, 0),
 
   getTotaal: () => {
     const sub = get().getSubtotaal();
@@ -129,10 +121,8 @@ export const usePosStore = create<PosState>((set, get) => ({
 
   logout: () =>
     set({
-      medewerkerId: null,
-      medewerkerNaam: null,
-      selectedTafelId: null,
-      selectedTafelNaam: null,
+      profileId: null,
+      profileName: null,
       orderItems: [],
       orderNotitie: '',
       korting: 0,

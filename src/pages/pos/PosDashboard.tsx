@@ -2,17 +2,17 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { Users, ShoppingCart, DollarSign, Package, Table2, UserCog, BarChart3, ArrowLeft } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { ShoppingCart, DollarSign, BarChart3, ArrowLeft } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { usePosStore } from '@/stores/posStore';
 
 export default function PosDashboard() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { restaurantId, restaurantNaam, medewerkerNaam } = usePosStore();
+  const { restaurantId, restaurantName, profileName } = usePosStore();
 
-  const [stats, setStats] = useState({ omzet: 0, orders: 0, openTafels: 0, staffOnline: 0 });
-  const [topProducts, setTopProducts] = useState<{ naam: string; count: number }[]>([]);
+  const [stats, setStats] = useState({ omzet: 0, orders: 0 });
+  const [topProducts, setTopProducts] = useState<{ name: string; count: number }[]>([]);
 
   useEffect(() => {
     if (!restaurantId) {
@@ -27,58 +27,49 @@ export default function PosDashboard() {
 
     const { data: orders } = await supabase
       .from('orders')
-      .select('totaal, items')
+      .select('total_amount')
       .eq('restaurant_id', restaurantId)
-      .gte('aangemaakt_op', today);
+      .gte('created_at', today);
 
-    const omzet = orders?.reduce((s, o) => s + Number(o.totaal), 0) || 0;
-
-    const { count: openTafels } = await supabase
-      .from('tafels')
-      .select('id', { count: 'exact', head: true })
-      .eq('restaurant_id', restaurantId)
-      .neq('status', 'vrij');
-
-    const { count: staffOnline } = await supabase
-      .from('shifts')
-      .select('id', { count: 'exact', head: true })
-      .eq('restaurant_id', restaurantId)
-      .is('uitgelogd_op', null);
+    const omzet = orders?.reduce((s, o) => s + Number(o.total_amount), 0) || 0;
 
     setStats({
       omzet,
       orders: orders?.length || 0,
-      openTafels: openTafels || 0,
-      staffOnline: staffOnline || 0,
     });
 
-    // Top products
-    const productCounts: Record<string, number> = {};
-    orders?.forEach(o => {
-      const items = o.items as { naam: string; aantal: number }[];
+    // Top products from order_items
+    const { data: orderIds } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('restaurant_id', restaurantId!)
+      .gte('created_at', today);
+
+    if (orderIds && orderIds.length > 0) {
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('name_snapshot, quantity')
+        .in('order_id', orderIds.map(o => o.id));
+
+      const productCounts: Record<string, number> = {};
       items?.forEach(item => {
-        productCounts[item.naam] = (productCounts[item.naam] || 0) + item.aantal;
+        productCounts[item.name_snapshot] = (productCounts[item.name_snapshot] || 0) + item.quantity;
       });
-    });
-    const sorted = Object.entries(productCounts)
-      .map(([naam, count]) => ({ naam, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-    setTopProducts(sorted);
+      const sorted = Object.entries(productCounts)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+      setTopProducts(sorted);
+    }
   }
 
   const statCards = [
     { label: 'Omzet vandaag', value: `€${stats.omzet.toFixed(2)}`, icon: DollarSign },
     { label: 'Bestellingen', value: stats.orders, icon: ShoppingCart },
-    { label: 'Bezette tafels', value: stats.openTafels, icon: Table2 },
-    { label: 'Staff online', value: stats.staffOnline, icon: Users },
   ];
 
   const navItems = [
-    { label: 'POS Terminal', path: `/pos/${slug}/tafels`, icon: ShoppingCart },
-    { label: 'Producten', path: `/pos/${slug}/producten`, icon: Package },
-    { label: 'Tafels', path: `/pos/${slug}/tafelbeheer`, icon: Table2 },
-    { label: 'Medewerkers', path: `/pos/${slug}/medewerkers`, icon: UserCog },
+    { label: 'Nieuwe bestelling', path: `/pos/${slug}/bestelling`, icon: ShoppingCart },
     { label: 'Rapporten', path: `/pos/${slug}/rapporten`, icon: BarChart3 },
   ];
 
@@ -86,19 +77,18 @@ export default function PosDashboard() {
     <div className="min-h-screen p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{restaurantNaam}</h1>
-          <p className="text-muted-foreground">Dashboard — {medewerkerNaam}</p>
+          <h1 className="text-2xl font-bold">{restaurantName}</h1>
+          <p className="text-muted-foreground">Dashboard — {profileName}</p>
         </div>
         <motion.button
           whileTap={{ scale: 0.95 }}
-          onClick={() => navigate(`/pos/${slug}`)}
+          onClick={() => { usePosStore.getState().logout(); navigate(`/pos/${slug}`); }}
           className="touch-target px-5 py-3 rounded-lg bg-secondary text-secondary-foreground font-medium"
         >
           Uitloggen
         </motion.button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map(card => (
           <motion.div
@@ -116,8 +106,7 @@ export default function PosDashboard() {
         ))}
       </div>
 
-      {/* Quick nav */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {navItems.map(item => (
           <Link key={item.path} to={item.path}>
             <motion.div
@@ -131,14 +120,13 @@ export default function PosDashboard() {
         ))}
       </div>
 
-      {/* Top products chart */}
       {topProducts.length > 0 && (
         <div className="surface p-5">
           <h3 className="font-semibold mb-4">Top producten vandaag</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={topProducts} layout="vertical">
               <XAxis type="number" stroke="hsl(0 0% 55%)" />
-              <YAxis type="category" dataKey="naam" width={120} stroke="hsl(0 0% 55%)" tick={{ fontSize: 12 }} />
+              <YAxis type="category" dataKey="name" width={120} stroke="hsl(0 0% 55%)" tick={{ fontSize: 12 }} />
               <Tooltip
                 contentStyle={{ background: 'hsl(0 0% 8%)', border: 'none', borderRadius: 8 }}
                 labelStyle={{ color: 'hsl(0 0% 95%)' }}
