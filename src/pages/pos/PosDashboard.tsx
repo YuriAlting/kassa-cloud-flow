@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { ShoppingCart, DollarSign, BarChart3, LogOut } from 'lucide-react';
@@ -20,77 +20,45 @@ export default function PosDashboard() {
       navigate('/login');
       return;
     }
+    // Staff should never see this page — redirect to floor plan
+    if (profile.role === 'staff') {
+      navigate('/restaurant/dashboard', { replace: true });
+      return;
+    }
     loadRestaurant();
     loadStats();
   }, [authLoading, user, profile]);
 
   async function loadRestaurant() {
-    const { data } = await supabase
-      .from('restaurants')
-      .select('name')
-      .eq('id', profile!.restaurant_id!)
-      .single();
+    const { data } = await supabase.from('restaurants').select('name').eq('id', profile!.restaurant_id!).single();
     if (data) setRestaurantName(data.name);
   }
 
   async function loadStats() {
     const restaurantId = profile!.restaurant_id!;
     const today = new Date().toISOString().split('T')[0];
-
-    const { data: orders } = await supabase
-      .from('orders')
-      .select('total_amount')
-      .eq('restaurant_id', restaurantId)
-      .gte('created_at', today);
-
+    const { data: orders } = await supabase.from('orders').select('total_amount').eq('restaurant_id', restaurantId).gte('created_at', today);
     const omzet = orders?.reduce((s, o) => s + Number(o.total_amount), 0) || 0;
     setStats({ omzet, orders: orders?.length || 0 });
 
-    const { data: orderIds } = await supabase
-      .from('orders')
-      .select('id')
-      .eq('restaurant_id', restaurantId)
-      .gte('created_at', today);
-
+    const { data: orderIds } = await supabase.from('orders').select('id').eq('restaurant_id', restaurantId).gte('created_at', today);
     if (orderIds && orderIds.length > 0) {
-      const { data: items } = await supabase
-        .from('order_items')
-        .select('name_snapshot, quantity')
-        .in('order_id', orderIds.map(o => o.id));
-
+      const { data: items } = await supabase.from('order_items').select('name_snapshot, quantity').in('order_id', orderIds.map(o => o.id));
       const productCounts: Record<string, number> = {};
-      items?.forEach(item => {
-        productCounts[item.name_snapshot] = (productCounts[item.name_snapshot] || 0) + item.quantity;
-      });
-      const sorted = Object.entries(productCounts)
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10);
-      setTopProducts(sorted);
+      items?.forEach(item => { productCounts[item.name_snapshot] = (productCounts[item.name_snapshot] || 0) + item.quantity; });
+      setTopProducts(Object.entries(productCounts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 10));
     }
   }
 
-  const handleLogout = async () => {
-    await signOut();
-    navigate('/login');
-  };
+  const handleLogout = async () => { await signOut(); navigate('/login'); };
 
   if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return (<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>);
   }
 
   const statCards = [
     { label: 'Omzet vandaag', value: `€${stats.omzet.toFixed(2)}`, icon: DollarSign },
     { label: 'Bestellingen', value: stats.orders, icon: ShoppingCart },
-  ];
-
-  const navItems = [
-    { label: 'Nieuwe bestelling', path: '/pos/bestelling', icon: ShoppingCart },
-    { label: 'Rapporten', path: '/pos/rapporten', icon: BarChart3 },
   ];
 
   return (
@@ -100,46 +68,19 @@ export default function PosDashboard() {
           <h1 className="text-2xl font-bold">{restaurantName}</h1>
           <p className="text-muted-foreground">Dashboard — {profile?.full_name || 'Gebruiker'}</p>
         </div>
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={handleLogout}
-          className="touch-target px-5 py-3 rounded-lg bg-secondary text-secondary-foreground font-medium flex items-center gap-2"
-        >
+        <motion.button whileTap={{ scale: 0.95 }} onClick={handleLogout}
+          className="touch-target px-5 py-3 rounded-lg bg-secondary text-secondary-foreground font-medium flex items-center gap-2">
           <LogOut className="w-4 h-4" /> Uitloggen
         </motion.button>
       </div>
-
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map(card => (
-          <motion.div
-            key={card.label}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="surface p-5"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <card.icon className="w-5 h-5 text-primary" />
-              <span className="text-sm text-muted-foreground">{card.label}</span>
-            </div>
+          <motion.div key={card.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="surface p-5">
+            <div className="flex items-center gap-3 mb-2"><card.icon className="w-5 h-5 text-primary" /><span className="text-sm text-muted-foreground">{card.label}</span></div>
             <p className="text-2xl font-bold">{card.value}</p>
           </motion.div>
         ))}
       </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {navItems.map(item => (
-          <Link key={item.path} to={item.path}>
-            <motion.div
-              whileTap={{ scale: 0.95 }}
-              className="surface surface-hover p-4 flex items-center gap-3"
-            >
-              <item.icon className="w-5 h-5 text-primary" />
-              <span className="font-medium">{item.label}</span>
-            </motion.div>
-          </Link>
-        ))}
-      </div>
-
       {topProducts.length > 0 && (
         <div className="surface p-5">
           <h3 className="font-semibold mb-4">Top producten vandaag</h3>
@@ -147,10 +88,7 @@ export default function PosDashboard() {
             <BarChart data={topProducts} layout="vertical">
               <XAxis type="number" stroke="hsl(0 0% 55%)" />
               <YAxis type="category" dataKey="name" width={120} stroke="hsl(0 0% 55%)" tick={{ fontSize: 12 }} />
-              <Tooltip
-                contentStyle={{ background: 'hsl(0 0% 8%)', border: 'none', borderRadius: 8 }}
-                labelStyle={{ color: 'hsl(0 0% 95%)' }}
-              />
+              <Tooltip contentStyle={{ background: 'hsl(0 0% 8%)', border: 'none', borderRadius: 8 }} labelStyle={{ color: 'hsl(0 0% 95%)' }} />
               <Bar dataKey="count" fill="hsl(38 92% 50%)" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
