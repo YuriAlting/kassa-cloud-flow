@@ -1,16 +1,34 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+export default function Index() {
+  const navigate = useNavigate();
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="min-h-screen flex flex-col items-center justify-center p-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center space-y-8 max-w-lg"
+      >
+        <div>
+          <h1 className="text-4xl font-bold text-primary">KassaCloud</h1>
+          <p className="text-muted-foreground mt-2">Multi-tenant Restaurant POS Platform</p>
+        </div>
+
+        <div className="space-y-3 w-full max-w-xs mx-auto">
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => navigate('/admin')}
+            className="touch-target w-full py-4 rounded-lg bg-primary text-primary-foreground font-semibold text-lg"
+          >
+            Superadmin
+          </motion.button>
+          <p className="text-sm text-muted-foreground">
+            POS terminals zijn beschikbaar via <code className="text-foreground">/pos/[restaurant-slug]</code>
+          </p>
+        </div>
+      </motion.div>
     </div>
   );
-};
-
-const Index = PlaceholderIndex;
-
-export default Index;
+}
