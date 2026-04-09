@@ -55,7 +55,7 @@ export default function RestaurantDashboard() {
       {/* Sidebar */}
       <aside className="w-64 border-r border-border flex flex-col bg-card">
         <div className="p-5 border-b border-border">
-          <h1 className="text-lg font-bold text-primary">KassaCloud</h1>
+          <h1 className="text-lg font-bold text-primary">AIA Kassa</h1>
           <p className="text-sm text-muted-foreground truncate">{restaurantName}</p>
         </div>
 
