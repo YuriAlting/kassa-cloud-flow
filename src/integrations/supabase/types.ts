@@ -14,34 +14,31 @@ export type Database = {
   }
   public: {
     Tables: {
-      medewerkers: {
+      categories: {
         Row: {
-          actief: boolean | null
           id: string
-          naam: string
-          pincode: string
+          is_active: boolean
+          name: string
           restaurant_id: string
-          rol: string | null
+          sort_order: number
         }
         Insert: {
-          actief?: boolean | null
           id?: string
-          naam: string
-          pincode: string
+          is_active?: boolean
+          name: string
           restaurant_id: string
-          rol?: string | null
+          sort_order?: number
         }
         Update: {
-          actief?: boolean | null
           id?: string
-          naam?: string
-          pincode?: string
+          is_active?: boolean
+          name?: string
           restaurant_id?: string
-          rol?: string | null
+          sort_order?: number
         }
         Relationships: [
           {
-            foreignKeyName: "medewerkers_restaurant_id_fkey"
+            foreignKeyName: "categories_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -49,55 +46,143 @@ export type Database = {
           },
         ]
       }
-      orders: {
+      menu_items: {
         Row: {
-          aangemaakt_op: string | null
-          betaalwijze: string | null
-          bron: string | null
+          category_id: string | null
+          description: string | null
           id: string
-          items: Json
-          korting: number | null
-          korting_type: string | null
-          medewerker_id: string | null
-          restaurant_id: string | null
-          status: string | null
-          tafel_id: string | null
-          totaal: number
+          is_active: boolean
+          name: string
+          price: number
+          restaurant_id: string
+          sort_order: number
         }
         Insert: {
-          aangemaakt_op?: string | null
-          betaalwijze?: string | null
-          bron?: string | null
+          category_id?: string | null
+          description?: string | null
           id?: string
-          items: Json
-          korting?: number | null
-          korting_type?: string | null
-          medewerker_id?: string | null
-          restaurant_id?: string | null
-          status?: string | null
-          tafel_id?: string | null
-          totaal: number
+          is_active?: boolean
+          name: string
+          price?: number
+          restaurant_id: string
+          sort_order?: number
         }
         Update: {
-          aangemaakt_op?: string | null
-          betaalwijze?: string | null
-          bron?: string | null
+          category_id?: string | null
+          description?: string | null
           id?: string
-          items?: Json
-          korting?: number | null
-          korting_type?: string | null
-          medewerker_id?: string | null
-          restaurant_id?: string | null
-          status?: string | null
-          tafel_id?: string | null
-          totaal?: number
+          is_active?: boolean
+          name?: string
+          price?: number
+          restaurant_id?: string
+          sort_order?: number
         }
         Relationships: [
           {
-            foreignKeyName: "orders_medewerker_id_fkey"
-            columns: ["medewerker_id"]
+            foreignKeyName: "menu_items_category_id_fkey"
+            columns: ["category_id"]
             isOneToOne: false
-            referencedRelation: "medewerkers"
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_items_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_items: {
+        Row: {
+          id: string
+          menu_item_id: string | null
+          name_snapshot: string
+          order_id: string
+          quantity: number
+          unit_price: number
+        }
+        Insert: {
+          id?: string
+          menu_item_id?: string | null
+          name_snapshot: string
+          order_id: string
+          quantity?: number
+          unit_price?: number
+        }
+        Update: {
+          id?: string
+          menu_item_id?: string | null
+          name_snapshot?: string
+          order_id?: string
+          quantity?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_menu_item_id_fkey"
+            columns: ["menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          order_number: number
+          payment_method_id: string | null
+          restaurant_id: string
+          source: string
+          status: string
+          total_amount: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          order_number?: number
+          payment_method_id?: string | null
+          restaurant_id: string
+          source?: string
+          status?: string
+          total_amount?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          order_number?: number
+          payment_method_id?: string | null
+          restaurant_id?: string
+          source?: string
+          status?: string
+          total_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
             referencedColumns: ["id"]
           },
           {
@@ -107,46 +192,62 @@ export type Database = {
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      payment_methods: {
+        Row: {
+          id: string
+          is_active: boolean
+          name: string
+          restaurant_id: string
+        }
+        Insert: {
+          id?: string
+          is_active?: boolean
+          name: string
+          restaurant_id: string
+        }
+        Update: {
+          id?: string
+          is_active?: boolean
+          name?: string
+          restaurant_id?: string
+        }
+        Relationships: [
           {
-            foreignKeyName: "orders_tafel_id_fkey"
-            columns: ["tafel_id"]
+            foreignKeyName: "payment_methods_restaurant_id_fkey"
+            columns: ["restaurant_id"]
             isOneToOne: false
-            referencedRelation: "tafels"
+            referencedRelation: "restaurants"
             referencedColumns: ["id"]
           },
         ]
       }
-      producten: {
+      profiles: {
         Row: {
-          actief: boolean | null
-          categorie: string
+          created_at: string
+          full_name: string | null
           id: string
-          naam: string
-          prijs: number
-          restaurant_id: string
-          volgorde: number | null
+          restaurant_id: string | null
+          role: Database["public"]["Enums"]["app_role"]
         }
         Insert: {
-          actief?: boolean | null
-          categorie: string
-          id?: string
-          naam: string
-          prijs: number
-          restaurant_id: string
-          volgorde?: number | null
+          created_at?: string
+          full_name?: string | null
+          id: string
+          restaurant_id?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
         }
         Update: {
-          actief?: boolean | null
-          categorie?: string
+          created_at?: string
+          full_name?: string | null
           id?: string
-          naam?: string
-          prijs?: number
-          restaurant_id?: string
-          volgorde?: number | null
+          restaurant_id?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
         }
         Relationships: [
           {
-            foreignKeyName: "producten_restaurant_id_fkey"
+            foreignKeyName: "profiles_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -156,135 +257,28 @@ export type Database = {
       }
       restaurants: {
         Row: {
-          aangemaakt_op: string | null
-          actief: boolean | null
+          address: string | null
+          created_at: string
           id: string
-          naam: string
-          printnode_api_key: string | null
-          printnode_kassa_id: string | null
-          printnode_keuken_1: string | null
-          printnode_keuken_2: string | null
-          printnode_keuken_3: string | null
+          is_active: boolean
+          name: string
           slug: string
         }
         Insert: {
-          aangemaakt_op?: string | null
-          actief?: boolean | null
+          address?: string | null
+          created_at?: string
           id?: string
-          naam: string
-          printnode_api_key?: string | null
-          printnode_kassa_id?: string | null
-          printnode_keuken_1?: string | null
-          printnode_keuken_2?: string | null
-          printnode_keuken_3?: string | null
+          is_active?: boolean
+          name: string
           slug: string
         }
         Update: {
-          aangemaakt_op?: string | null
-          actief?: boolean | null
+          address?: string | null
+          created_at?: string
           id?: string
-          naam?: string
-          printnode_api_key?: string | null
-          printnode_kassa_id?: string | null
-          printnode_keuken_1?: string | null
-          printnode_keuken_2?: string | null
-          printnode_keuken_3?: string | null
+          is_active?: boolean
+          name?: string
           slug?: string
-        }
-        Relationships: []
-      }
-      shifts: {
-        Row: {
-          id: string
-          ingelogd_op: string | null
-          medewerker_id: string | null
-          restaurant_id: string | null
-          uitgelogd_op: string | null
-        }
-        Insert: {
-          id?: string
-          ingelogd_op?: string | null
-          medewerker_id?: string | null
-          restaurant_id?: string | null
-          uitgelogd_op?: string | null
-        }
-        Update: {
-          id?: string
-          ingelogd_op?: string | null
-          medewerker_id?: string | null
-          restaurant_id?: string | null
-          uitgelogd_op?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "shifts_medewerker_id_fkey"
-            columns: ["medewerker_id"]
-            isOneToOne: false
-            referencedRelation: "medewerkers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shifts_restaurant_id_fkey"
-            columns: ["restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "restaurants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tafels: {
-        Row: {
-          capaciteit: number | null
-          id: string
-          naam: string
-          restaurant_id: string
-          status: string | null
-          volgorde: number | null
-          zone: string
-        }
-        Insert: {
-          capaciteit?: number | null
-          id?: string
-          naam: string
-          restaurant_id: string
-          status?: string | null
-          volgorde?: number | null
-          zone: string
-        }
-        Update: {
-          capaciteit?: number | null
-          id?: string
-          naam?: string
-          restaurant_id?: string
-          status?: string | null
-          volgorde?: number | null
-          zone?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tafels_restaurant_id_fkey"
-            columns: ["restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "restaurants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      user_roles: {
-        Row: {
-          id: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
-        Insert: {
-          id?: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
-        Update: {
-          id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          user_id?: string
         }
         Relationships: []
       }
@@ -293,16 +287,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
+      get_user_restaurant_id: { Args: never; Returns: string }
+      get_user_role: {
+        Args: never
+        Returns: Database["public"]["Enums"]["app_role"]
       }
     }
     Enums: {
-      app_role: "superadmin"
+      app_role: "superadmin" | "owner" | "staff"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -430,7 +422,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["superadmin"],
+      app_role: ["superadmin", "owner", "staff"],
     },
   },
 } as const
