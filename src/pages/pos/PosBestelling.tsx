@@ -6,6 +6,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { usePosStore } from '@/stores/posStore';
 import { PosKortingModal } from '@/components/pos/PosKortingModal';
 import { PosAfrekenen } from '@/components/pos/PosAfrekenen';
+import { PosOptionsModal } from '@/components/pos/PosOptionsModal';
+
+interface ProductOption {
+  id: string;
+  name: string;
+  price: number;
+  menu_item_id: string;
+}
 
 interface MenuItem {
   id: string;
