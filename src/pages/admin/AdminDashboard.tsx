@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, LogOut } from 'lucide-react';
+import { Plus, LogOut, Map } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Restaurant {
@@ -111,7 +112,13 @@ export default function AdminDashboard() {
           <h1 className="text-2xl font-bold text-primary">KassaCloud</h1>
           <p className="text-muted-foreground">Superadmin Dashboard</p>
         </div>
-        <div className="flex gap-3">
+          <div className="flex gap-3">
+            <Link to="/admin/plattegrond">
+              <motion.button whileTap={{ scale: 0.95 }}
+                className="touch-target px-5 py-3 rounded-lg bg-secondary text-secondary-foreground font-medium flex items-center gap-2">
+                <Map className="w-4 h-4" /> Plattegrond
+              </motion.button>
+            </Link>
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowCreate(true)}
