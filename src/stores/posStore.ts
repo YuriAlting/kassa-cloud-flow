@@ -18,9 +18,14 @@ interface PosState {
   orderNotitie: string;
   korting: number;
   kortingType: 'percentage' | 'vast' | null;
+  tableId: string | null;
+  tableNumber: string | null;
+  orderType: 'dine_in' | 'takeaway' | null;
 
   setRestaurant: (id: string, name: string) => void;
   setProfile: (id: string, name: string) => void;
+  setTable: (tableId: string | null, tableNumber: string | null) => void;
+  setOrderType: (type: 'dine_in' | 'takeaway' | null) => void;
   addItem: (product: { id: string; name: string; price: number }) => void;
   removeItem: (menuItemId: string) => void;
   updateItemQuantity: (menuItemId: string, delta: number) => void;
@@ -42,9 +47,14 @@ export const usePosStore = create<PosState>((set, get) => ({
   orderNotitie: '',
   korting: 0,
   kortingType: null,
+  tableId: null,
+  tableNumber: null,
+  orderType: null,
 
   setRestaurant: (id, name) => set({ restaurantId: id, restaurantName: name }),
   setProfile: (id, name) => set({ profileId: id, profileName: name }),
+  setTable: (tableId, tableNumber) => set({ tableId, tableNumber }),
+  setOrderType: (type) => set({ orderType: type }),
 
   addItem: (product) => {
     const items = get().orderItems;
@@ -106,6 +116,9 @@ export const usePosStore = create<PosState>((set, get) => ({
       orderNotitie: '',
       korting: 0,
       kortingType: null,
+      tableId: null,
+      tableNumber: null,
+      orderType: null,
     }),
 
   getSubtotaal: () =>
@@ -127,5 +140,8 @@ export const usePosStore = create<PosState>((set, get) => ({
       orderNotitie: '',
       korting: 0,
       kortingType: null,
+      tableId: null,
+      tableNumber: null,
+      orderType: null,
     }),
 }));
