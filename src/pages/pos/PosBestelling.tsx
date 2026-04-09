@@ -102,6 +102,9 @@ export default function PosBestelling() {
   const subtotaal = store.getSubtotaal();
   const totaal = store.getTotaal();
 
+  const isStaff = profile?.role === 'staff';
+  const backPath = isStaff ? '/restaurant/dashboard' : '/pos/dashboard';
+
   const handleClear = () => {
     if (confirmClear) {
       store.clearOrder();
