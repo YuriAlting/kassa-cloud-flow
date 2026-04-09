@@ -11,7 +11,7 @@ import PosBestelling from "./pages/pos/PosBestelling";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import RestaurantDashboard from "./pages/restaurant/RestaurantDashboard";
-import RestaurantOverview from "./pages/restaurant/RestaurantOverview";
+import DashboardRouter from "./pages/restaurant/DashboardRouter";
 import MenuPage from "./pages/restaurant/MenuPage";
 import CategoriesPage from "./pages/restaurant/CategoriesPage";
 import PaymentMethodsPage from "./pages/restaurant/PaymentMethodsPage";
