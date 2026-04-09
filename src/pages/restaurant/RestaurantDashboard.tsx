@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { UtensilsCrossed, Tag, CreditCard, ShoppingCart, LogOut, LayoutDashboard, Monitor } from 'lucide-react';
+import { UtensilsCrossed, Tag, CreditCard, ShoppingCart, LogOut, LayoutDashboard, Monitor, Map, ClipboardList } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -41,14 +41,22 @@ export default function RestaurantDashboard() {
     );
   }
 
-  const navItems = [
-    { label: 'Overzicht', path: '/restaurant/dashboard', icon: LayoutDashboard },
-    { label: 'Menu', path: '/restaurant/menu', icon: UtensilsCrossed },
-    { label: 'Categorieën', path: '/restaurant/categories', icon: Tag },
-    { label: 'Betaalmethoden', path: '/restaurant/payments', icon: CreditCard },
-    { label: 'Bestellingen', path: '/restaurant/orders', icon: ShoppingCart },
-    { label: 'POS Kassa', path: '/pos/bestelling', icon: Monitor },
-  ];
+  const isStaff = profile?.role === 'staff';
+
+  const navItems = isStaff
+    ? [
+        { label: 'Plattegrond', path: '/restaurant/dashboard', icon: Map },
+        { label: 'Bestellingen', path: '/restaurant/bestellingen', icon: ClipboardList },
+        { label: 'POS Kassa', path: '/pos/bestelling', icon: Monitor },
+      ]
+    : [
+        { label: 'Overzicht', path: '/restaurant/dashboard', icon: LayoutDashboard },
+        { label: 'Menu', path: '/restaurant/menu', icon: UtensilsCrossed },
+        { label: 'Categorieën', path: '/restaurant/categories', icon: Tag },
+        { label: 'Betaalmethoden', path: '/restaurant/payments', icon: CreditCard },
+        { label: 'Bestellingen', path: '/restaurant/orders', icon: ShoppingCart },
+        { label: 'POS Kassa', path: '/pos/bestelling', icon: Monitor },
+      ];
 
   return (
     <div className="min-h-screen flex">

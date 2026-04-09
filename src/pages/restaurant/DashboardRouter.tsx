@@ -1,9 +1,9 @@
 import { useAuth } from '@/contexts/AuthContext';
 import RestaurantOverview from './RestaurantOverview';
-import StaffDashboard from './StaffDashboard';
+import FloorPlanPage from './FloorPlanPage';
 
 export default function DashboardRouter() {
   const { profile } = useAuth();
-  if (profile?.role === 'staff') return <StaffDashboard />;
+  if (profile?.role === 'staff') return <FloorPlanPage />;
   return <RestaurantOverview />;
 }
