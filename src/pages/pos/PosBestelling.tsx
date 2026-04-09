@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Minus, Plus, Percent, ArrowLeft, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePosStore } from '@/stores/posStore';
+import { useAuth } from '@/contexts/AuthContext';
 import { PosKortingModal } from '@/components/pos/PosKortingModal';
 import { PosAfrekenen } from '@/components/pos/PosAfrekenen';
 import { PosOptionsModal } from '@/components/pos/PosOptionsModal';
@@ -42,9 +43,9 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function PosBestelling() {
-  const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const store = usePosStore();
+  const { user, profile, loading: authLoading } = useAuth();
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -55,18 +56,24 @@ export default function PosBestelling() {
   const [productOptions, setProductOptions] = useState<Record<string, ProductOption[]>>({});
   const [optionsModal, setOptionsModal] = useState<{ item: MenuItem } | null>(null);
 
+  const restaurantId = profile?.restaurant_id;
+
   useEffect(() => {
-    if (!store.restaurantId) {
-      navigate(`/pos/${slug}`);
+    if (authLoading) return;
+    if (!user || !restaurantId) {
+      navigate('/login');
       return;
     }
+    // Sync store with auth profile
+    store.setRestaurant(restaurantId, '');
+    store.setProfile(profile!.id, profile!.full_name || 'Gebruiker');
     loadData();
-  }, [store.restaurantId]);
+  }, [authLoading, user, restaurantId]);
 
   async function loadData() {
     const [{ data: cats }, { data: items }] = await Promise.all([
-      supabase.from('categories').select('id, name').eq('restaurant_id', store.restaurantId!).eq('is_active', true).order('sort_order'),
-      supabase.from('menu_items').select('id, name, price, category_id').eq('restaurant_id', store.restaurantId!).eq('is_active', true).order('sort_order'),
+      supabase.from('categories').select('id, name').eq('restaurant_id', restaurantId!).eq('is_active', true).order('sort_order'),
+      supabase.from('menu_items').select('id, name, price, category_id').eq('restaurant_id', restaurantId!).eq('is_active', true).order('sort_order'),
     ]);
 
     if (cats) {
@@ -105,8 +112,16 @@ export default function PosBestelling() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   if (showAfrekenen) {
-    return <PosAfrekenen slug={slug!} onClose={() => setShowAfrekenen(false)} />;
+    return <PosAfrekenen onClose={() => setShowAfrekenen(false)} />;
   }
 
   return (
@@ -115,13 +130,13 @@ export default function PosBestelling() {
       <header className="flex items-center gap-3 px-4 py-2 border-b border-border shrink-0">
         <motion.button
           whileTap={{ scale: 0.9 }}
-          onClick={() => navigate(`/pos/${slug}/dashboard`)}
+          onClick={() => navigate('/pos/dashboard')}
           className="w-10 h-10 flex items-center justify-center rounded-lg bg-secondary"
         >
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </motion.button>
         <span className="font-semibold text-foreground text-lg">POS</span>
-        <span className="text-sm text-muted-foreground">{store.profileName}</span>
+        <span className="text-sm text-muted-foreground">{profile?.full_name}</span>
       </header>
 
       <div className="flex-1 flex overflow-hidden">

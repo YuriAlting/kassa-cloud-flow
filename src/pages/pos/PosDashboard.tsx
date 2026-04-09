@@ -1,28 +1,40 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { ShoppingCart, DollarSign, BarChart3, ArrowLeft } from 'lucide-react';
+import { ShoppingCart, DollarSign, BarChart3, LogOut } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { usePosStore } from '@/stores/posStore';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function PosDashboard() {
-  const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { restaurantId, restaurantName, profileName } = usePosStore();
+  const { user, profile, loading: authLoading, signOut } = useAuth();
 
   const [stats, setStats] = useState({ omzet: 0, orders: 0 });
   const [topProducts, setTopProducts] = useState<{ name: string; count: number }[]>([]);
+  const [restaurantName, setRestaurantName] = useState('');
 
   useEffect(() => {
-    if (!restaurantId) {
-      navigate(`/pos/${slug}`);
+    if (authLoading) return;
+    if (!user || !profile?.restaurant_id) {
+      navigate('/login');
       return;
     }
+    loadRestaurant();
     loadStats();
-  }, [restaurantId]);
+  }, [authLoading, user, profile]);
+
+  async function loadRestaurant() {
+    const { data } = await supabase
+      .from('restaurants')
+      .select('name')
+      .eq('id', profile!.restaurant_id!)
+      .single();
+    if (data) setRestaurantName(data.name);
+  }
 
   async function loadStats() {
+    const restaurantId = profile!.restaurant_id!;
     const today = new Date().toISOString().split('T')[0];
 
     const { data: orders } = await supabase
@@ -32,17 +44,12 @@ export default function PosDashboard() {
       .gte('created_at', today);
 
     const omzet = orders?.reduce((s, o) => s + Number(o.total_amount), 0) || 0;
+    setStats({ omzet, orders: orders?.length || 0 });
 
-    setStats({
-      omzet,
-      orders: orders?.length || 0,
-    });
-
-    // Top products from order_items
     const { data: orderIds } = await supabase
       .from('orders')
       .select('id')
-      .eq('restaurant_id', restaurantId!)
+      .eq('restaurant_id', restaurantId)
       .gte('created_at', today);
 
     if (orderIds && orderIds.length > 0) {
@@ -63,14 +70,27 @@ export default function PosDashboard() {
     }
   }
 
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/login');
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   const statCards = [
     { label: 'Omzet vandaag', value: `€${stats.omzet.toFixed(2)}`, icon: DollarSign },
     { label: 'Bestellingen', value: stats.orders, icon: ShoppingCart },
   ];
 
   const navItems = [
-    { label: 'Nieuwe bestelling', path: `/pos/${slug}/bestelling`, icon: ShoppingCart },
-    { label: 'Rapporten', path: `/pos/${slug}/rapporten`, icon: BarChart3 },
+    { label: 'Nieuwe bestelling', path: '/pos/bestelling', icon: ShoppingCart },
+    { label: 'Rapporten', path: '/pos/rapporten', icon: BarChart3 },
   ];
 
   return (
@@ -78,14 +98,14 @@ export default function PosDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">{restaurantName}</h1>
-          <p className="text-muted-foreground">Dashboard — {profileName}</p>
+          <p className="text-muted-foreground">Dashboard — {profile?.full_name || 'Gebruiker'}</p>
         </div>
         <motion.button
           whileTap={{ scale: 0.95 }}
-          onClick={() => { usePosStore.getState().logout(); navigate(`/pos/${slug}`); }}
-          className="touch-target px-5 py-3 rounded-lg bg-secondary text-secondary-foreground font-medium"
+          onClick={handleLogout}
+          className="touch-target px-5 py-3 rounded-lg bg-secondary text-secondary-foreground font-medium flex items-center gap-2"
         >
-          Uitloggen
+          <LogOut className="w-4 h-4" /> Uitloggen
         </motion.button>
       </div>
 

@@ -26,7 +26,7 @@ export default function Login() {
 
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, restaurant_id')
         .eq('id', data.user.id)
         .maybeSingle();
 
@@ -39,8 +39,11 @@ export default function Login() {
 
       if (profile.role === 'superadmin') {
         navigate('/admin/dashboard');
-      } else {
+      } else if (profile.role === 'owner') {
         navigate('/restaurant/dashboard');
+      } else {
+        // staff → POS
+        navigate('/pos/dashboard');
       }
     } catch (err) {
       setError('Er is iets misgegaan. Probeer opnieuw.');

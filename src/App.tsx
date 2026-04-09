@@ -6,10 +6,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
-import PosLogin from "./pages/pos/PosLogin";
-import PosTafels from "./pages/pos/PosTafels";
-import PosBestelling from "./pages/pos/PosBestelling";
 import PosDashboard from "./pages/pos/PosDashboard";
+import PosBestelling from "./pages/pos/PosBestelling";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import RestaurantDashboard from "./pages/restaurant/RestaurantDashboard";
@@ -38,11 +36,9 @@ const App = () => (
               <Route path="payments" element={<PaymentMethodsPage />} />
               <Route path="orders" element={<OrdersPage />} />
             </Route>
-            {/* POS Terminal */}
-            <Route path="/pos/:slug" element={<PosLogin />} />
-            <Route path="/pos/:slug/tafels" element={<PosTafels />} />
-            <Route path="/pos/:slug/bestelling" element={<PosBestelling />} />
-            <Route path="/pos/:slug/dashboard" element={<PosDashboard />} />
+            {/* POS Terminal — no slug needed */}
+            <Route path="/pos/dashboard" element={<PosDashboard />} />
+            <Route path="/pos/bestelling" element={<PosBestelling />} />
             {/* Superadmin */}
             <Route path="/admin" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
