@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { UtensilsCrossed, Tag, CreditCard, ShoppingCart, LogOut, LayoutDashboard } from 'lucide-react';
+import { UtensilsCrossed, Tag, CreditCard, ShoppingCart, LogOut, LayoutDashboard, Monitor } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
