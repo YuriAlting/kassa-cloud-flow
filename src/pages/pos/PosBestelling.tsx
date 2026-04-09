@@ -6,6 +6,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { usePosStore } from '@/stores/posStore';
 import { PosKortingModal } from '@/components/pos/PosKortingModal';
 import { PosAfrekenen } from '@/components/pos/PosAfrekenen';
+import { PosOptionsModal } from '@/components/pos/PosOptionsModal';
+
+interface ProductOption {
+  id: string;
+  name: string;
+  price: number;
+  menu_item_id: string;
+}
 
 interface MenuItem {
   id: string;
@@ -33,6 +41,8 @@ export default function PosBestelling() {
   const [showAfrekenen, setShowAfrekenen] = useState(false);
   const [noteItemId, setNoteItemId] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [productOptions, setProductOptions] = useState<Record<string, ProductOption[]>>({});
+  const [optionsModal, setOptionsModal] = useState<{ item: MenuItem } | null>(null);
 
   useEffect(() => {
     if (!store.restaurantId) {
@@ -62,7 +72,24 @@ export default function PosBestelling() {
       setCategories(cats);
       if (cats.length > 0) setActiveCategoryId(cats[0].id);
     }
-    if (items) setMenuItems(items);
+    if (items) {
+      setMenuItems(items);
+      const itemIds = items.map(i => i.id);
+      if (itemIds.length > 0) {
+        const { data: opts } = await supabase
+          .from('product_options')
+          .select('id, menu_item_id, name, price')
+          .in('menu_item_id', itemIds);
+        if (opts) {
+          const grouped: Record<string, ProductOption[]> = {};
+          opts.forEach(o => {
+            if (!grouped[o.menu_item_id!]) grouped[o.menu_item_id!] = [];
+            grouped[o.menu_item_id!].push({ id: o.id, name: o.name, price: o.price, menu_item_id: o.menu_item_id! });
+          });
+          setProductOptions(grouped);
+        }
+      }
+    }
   }
 
   const filtered = menuItems.filter(p => {
@@ -142,7 +169,14 @@ export default function PosBestelling() {
                 <motion.button
                   key={item.id}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => store.addItem({ id: item.id, name: item.name, price: item.price })}
+                  onClick={() => {
+                    const opts = productOptions[item.id];
+                    if (opts && opts.length > 0) {
+                      setOptionsModal({ item });
+                    } else {
+                      store.addItem({ id: item.id, name: item.name, price: item.price });
+                    }
+                  }}
                   className="surface surface-hover p-4 text-left"
                 >
                   <p className="font-medium text-sm leading-tight">{item.name}</p>
@@ -280,6 +314,21 @@ export default function PosBestelling() {
       </div>
 
       {showKorting && <PosKortingModal onClose={() => setShowKorting(false)} />}
+      {optionsModal && (
+        <PosOptionsModal
+          itemName={optionsModal.item.name}
+          options={productOptions[optionsModal.item.id] || []}
+          onSelect={(opt) => {
+            store.addItem({
+              id: optionsModal.item.id,
+              name: `${optionsModal.item.name} - ${opt.name}`,
+              price: opt.price,
+            });
+            setOptionsModal(null);
+          }}
+          onClose={() => setOptionsModal(null)}
+        />
+      )}
     </div>
   );
 }
