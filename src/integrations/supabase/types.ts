@@ -175,6 +175,7 @@ export type Database = {
           restaurant_id: string
           source: string
           status: string
+          table_id: string | null
           total_amount: number
         }
         Insert: {
@@ -186,6 +187,7 @@ export type Database = {
           restaurant_id: string
           source?: string
           status?: string
+          table_id?: string | null
           total_amount?: number
         }
         Update: {
@@ -197,6 +199,7 @@ export type Database = {
           restaurant_id?: string
           source?: string
           status?: string
+          table_id?: string | null
           total_amount?: number
         }
         Relationships: [
@@ -219,6 +222,13 @@ export type Database = {
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "tables"
             referencedColumns: ["id"]
           },
         ]
