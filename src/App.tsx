@@ -17,6 +17,7 @@ import CategoriesPage from "./pages/restaurant/CategoriesPage";
 import PaymentMethodsPage from "./pages/restaurant/PaymentMethodsPage";
 import OrdersPage from "./pages/restaurant/OrdersPage";
 import StaffDashboard from "./pages/restaurant/StaffDashboard";
+import FloorPlanPage from "./pages/restaurant/FloorPlanPage";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
               <Route path="payments" element={<PaymentMethodsPage />} />
               <Route path="orders" element={<OrdersPage />} />
               <Route path="bestellingen" element={<StaffDashboard />} />
+              <Route path="plattegrond" element={<FloorPlanPage />} />
             </Route>
             {/* POS Terminal — no slug needed */}
             <Route path="/pos/dashboard" element={<PosDashboard />} />

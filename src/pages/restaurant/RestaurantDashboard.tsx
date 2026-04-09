@@ -51,6 +51,7 @@ export default function RestaurantDashboard() {
       ]
     : [
         { label: 'Overzicht', path: '/restaurant/dashboard', icon: LayoutDashboard },
+        { label: 'Plattegrond', path: '/restaurant/plattegrond', icon: Map },
         { label: 'Menu', path: '/restaurant/menu', icon: UtensilsCrossed },
         { label: 'Categorieën', path: '/restaurant/categories', icon: Tag },
         { label: 'Betaalmethoden', path: '/restaurant/payments', icon: CreditCard },
