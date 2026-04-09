@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Minus, Plus, X, Percent, ArrowLeft } from 'lucide-react';
+import { Minus, Plus, Percent, ArrowLeft, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePosStore } from '@/stores/posStore';
 import { PosKortingModal } from '@/components/pos/PosKortingModal';
@@ -20,13 +20,26 @@ interface MenuItem {
   name: string;
   price: number;
   category_id: string;
-  category_name?: string;
 }
 
 interface Category {
   id: string;
   name: string;
 }
+
+const CATEGORY_COLORS: Record<string, string> = {
+  'Friet': 'bg-amber-600',
+  'Snacks': 'bg-orange-600',
+  'Burgers': 'bg-red-700',
+  'Broodjes': 'bg-yellow-700',
+  'Turkse Pizza': 'bg-rose-700',
+  'Kapsalon & Box': 'bg-purple-700',
+  'Schotels': 'bg-indigo-700',
+  'Menus': 'bg-blue-700',
+  "Pizza's": 'bg-green-700',
+  'Extras': 'bg-teal-700',
+  'Dranken': 'bg-cyan-700',
+};
 
 export default function PosBestelling() {
   const { slug } = useParams<{ slug: string }>();
@@ -36,10 +49,8 @@ export default function PosBestelling() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState<string>('');
-  const [zoek, setZoek] = useState('');
   const [showKorting, setShowKorting] = useState(false);
   const [showAfrekenen, setShowAfrekenen] = useState(false);
-  const [noteItemId, setNoteItemId] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [productOptions, setProductOptions] = useState<Record<string, ProductOption[]>>({});
   const [optionsModal, setOptionsModal] = useState<{ item: MenuItem } | null>(null);
@@ -54,18 +65,8 @@ export default function PosBestelling() {
 
   async function loadData() {
     const [{ data: cats }, { data: items }] = await Promise.all([
-      supabase
-        .from('categories')
-        .select('id, name')
-        .eq('restaurant_id', store.restaurantId!)
-        .eq('is_active', true)
-        .order('sort_order'),
-      supabase
-        .from('menu_items')
-        .select('id, name, price, category_id')
-        .eq('restaurant_id', store.restaurantId!)
-        .eq('is_active', true)
-        .order('sort_order'),
+      supabase.from('categories').select('id, name').eq('restaurant_id', store.restaurantId!).eq('is_active', true).order('sort_order'),
+      supabase.from('menu_items').select('id, name, price, category_id').eq('restaurant_id', store.restaurantId!).eq('is_active', true).order('sort_order'),
     ]);
 
     if (cats) {
@@ -76,15 +77,12 @@ export default function PosBestelling() {
       setMenuItems(items);
       const itemIds = items.map(i => i.id);
       if (itemIds.length > 0) {
-        const { data: opts } = await supabase
-          .from('product_options')
-          .select('id, menu_item_id, name, price')
-          .in('menu_item_id', itemIds);
+        const { data: opts } = await supabase.from('product_options').select('id, menu_item_id, name, price').in('menu_item_id', itemIds);
         if (opts) {
           const grouped: Record<string, ProductOption[]> = {};
           opts.forEach(o => {
-            if (!grouped[o.menu_item_id!]) grouped[o.menu_item_id!] = [];
-            grouped[o.menu_item_id!].push({ id: o.id, name: o.name, price: o.price, menu_item_id: o.menu_item_id! });
+            if (!grouped[o.menu_item_id]) grouped[o.menu_item_id] = [];
+            grouped[o.menu_item_id].push({ id: o.id, name: o.name, price: o.price, menu_item_id: o.menu_item_id });
           });
           setProductOptions(grouped);
         }
@@ -92,11 +90,8 @@ export default function PosBestelling() {
     }
   }
 
-  const filtered = menuItems.filter(p => {
-    if (zoek) return p.name.toLowerCase().includes(zoek.toLowerCase());
-    return p.category_id === activeCategoryId;
-  });
-
+  const filtered = menuItems.filter(p => p.category_id === activeCategoryId);
+  const activeCatName = categories.find(c => c.id === activeCategoryId)?.name || '';
   const subtotaal = store.getSubtotaal();
   const totaal = store.getTotaal();
 
@@ -115,88 +110,76 @@ export default function PosBestelling() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="flex items-center gap-4 px-6 py-3 border-b border-border">
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
+      {/* Header */}
+      <header className="flex items-center gap-3 px-4 py-2 border-b border-border shrink-0">
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => navigate(`/pos/${slug}/dashboard`)}
-          className="touch-target flex items-center justify-center rounded-lg bg-secondary"
+          className="w-10 h-10 flex items-center justify-center rounded-lg bg-secondary"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="w-5 h-5 text-foreground" />
         </motion.button>
-        <div>
-          <span className="font-semibold">Bestelling</span>
-          <span className="text-sm text-muted-foreground ml-3">{store.profileName}</span>
-        </div>
+        <span className="font-semibold text-foreground text-lg">POS</span>
+        <span className="text-sm text-muted-foreground">{store.profileName}</span>
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Left — products */}
-        <div className="flex-[63] flex flex-col border-r border-border">
-          <div className="flex gap-2 px-4 py-3 overflow-x-auto border-b border-border">
-            {categories.map(cat => (
+        {/* Left — Category sidebar */}
+        <div className="w-[140px] shrink-0 overflow-y-auto border-r border-border bg-card flex flex-col gap-1 p-2">
+          {categories.map(cat => {
+            const colorClass = CATEGORY_COLORS[cat.name] || 'bg-secondary';
+            const isActive = activeCategoryId === cat.id;
+            return (
               <motion.button
                 key={cat.id}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => { setActiveCategoryId(cat.id); setZoek(''); }}
-                className={`touch-target px-5 py-3 rounded-lg font-medium whitespace-nowrap transition-colors ${
-                  activeCategoryId === cat.id && !zoek
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-secondary-foreground'
-                }`}
+                onClick={() => setActiveCategoryId(cat.id)}
+                className={`w-full py-4 px-2 rounded-lg font-semibold text-sm text-center transition-all ${colorClass} ${
+                  isActive ? 'ring-2 ring-foreground scale-[1.02] brightness-125' : 'opacity-75 hover:opacity-90'
+                } text-white`}
               >
                 {cat.name}
               </motion.button>
-            ))}
-          </div>
-
-          <div className="px-4 py-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                value={zoek}
-                onChange={e => setZoek(e.target.value)}
-                placeholder="Zoek product..."
-                className="w-full pl-10 pr-4 py-3 rounded-lg bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="grid grid-cols-3 lg:grid-cols-4 gap-3">
-              {filtered.map(item => (
-                <motion.button
-                  key={item.id}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => {
-                    const opts = productOptions[item.id];
-                    if (opts && opts.length > 0) {
-                      setOptionsModal({ item });
-                    } else {
-                      store.addItem({ id: item.id, name: item.name, price: item.price });
-                    }
-                  }}
-                  className="surface surface-hover p-4 text-left"
-                >
-                  <p className="font-medium text-sm leading-tight">{item.name}</p>
-                  <p className="text-primary font-semibold mt-1">€{Number(item.price).toFixed(2)}</p>
-                </motion.button>
-              ))}
-            </div>
-            {filtered.length === 0 && (
-              <p className="text-center text-muted-foreground py-16">Geen producten gevonden</p>
-            )}
-          </div>
+            );
+          })}
         </div>
 
-        {/* Right — order */}
-        <div className="flex-[37] flex flex-col bg-card">
+        {/* Center — Product grid */}
+        <div className="flex-1 overflow-y-auto p-3">
+          <div className="grid grid-cols-3 lg:grid-cols-4 gap-2">
+            {filtered.map(item => (
+              <motion.button
+                key={item.id}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  const opts = productOptions[item.id];
+                  if (opts && opts.length > 0) {
+                    setOptionsModal({ item });
+                  } else {
+                    store.addItem({ id: item.id, name: item.name, price: item.price });
+                  }
+                }}
+                className="bg-card border border-border rounded-xl p-3 flex flex-col justify-between min-h-[90px] hover:bg-secondary transition-colors text-left"
+              >
+                <span className="font-semibold text-sm text-foreground leading-tight">{item.name}</span>
+                <span className="text-primary font-bold text-base mt-1">€{Number(item.price).toFixed(2)}</span>
+              </motion.button>
+            ))}
+          </div>
+          {filtered.length === 0 && (
+            <p className="text-center text-muted-foreground py-16">Geen producten in {activeCatName}</p>
+          )}
+        </div>
+
+        {/* Right — Cart */}
+        <div className="w-[320px] shrink-0 flex flex-col bg-card border-l border-border">
           <div className="px-4 py-3 border-b border-border">
-            <h2 className="font-semibold">Bestelling</h2>
+            <h2 className="font-bold text-foreground">Bestelling</h2>
+            <span className="text-xs text-muted-foreground">{store.orderItems.length} items</span>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          <div className="flex-1 overflow-y-auto">
             <AnimatePresence>
               {store.orderItems.map(item => (
                 <motion.div
@@ -204,69 +187,41 @@ export default function PosBestelling() {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="surface p-3"
+                  className="px-3 py-2 border-b border-border"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-foreground flex-1 mr-2 leading-tight">{item.name_snapshot}</span>
+                    <span className="text-sm font-semibold text-foreground whitespace-nowrap">€{(item.unit_price * item.quantity).toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <motion.button
                       whileTap={{ scale: 0.8 }}
                       onClick={() => store.updateItemQuantity(item.menu_item_id, -1)}
                       className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center"
                     >
-                      <Minus className="w-4 h-4" />
+                      {item.quantity === 1 ? <Trash2 className="w-3.5 h-3.5 text-destructive" /> : <Minus className="w-3.5 h-3.5 text-foreground" />}
                     </motion.button>
-                    <span className="font-semibold w-6 text-center">{item.quantity}</span>
+                    <span className="font-bold text-foreground w-6 text-center text-sm">{item.quantity}</span>
                     <motion.button
                       whileTap={{ scale: 0.8 }}
                       onClick={() => store.updateItemQuantity(item.menu_item_id, 1)}
                       className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus className="w-3.5 h-3.5 text-foreground" />
                     </motion.button>
-                    <span className="flex-1 text-sm font-medium">{item.name_snapshot}</span>
-                    <span className="font-semibold text-sm">€{(item.unit_price * item.quantity).toFixed(2)}</span>
+                    <span className="text-xs text-muted-foreground ml-auto">á €{item.unit_price.toFixed(2)}</span>
                   </div>
-                  {item.notitie && (
-                    <p className="text-xs text-muted-foreground mt-1 ml-[88px]">📝 {item.notitie}</p>
-                  )}
-                  {noteItemId === item.menu_item_id && (
-                    <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} className="mt-2">
-                      <input
-                        autoFocus
-                        type="text"
-                        placeholder="Notitie (bijv. geen ui)"
-                        defaultValue={item.notitie || ''}
-                        onBlur={e => {
-                          store.setItemNotitie(item.menu_item_id, e.target.value);
-                          setNoteItemId(null);
-                        }}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            store.setItemNotitie(item.menu_item_id, (e.target as HTMLInputElement).value);
-                            setNoteItemId(null);
-                          }
-                        }}
-                        className="w-full px-3 py-2 rounded bg-secondary text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </motion.div>
-                  )}
-                  <button
-                    onClick={() => setNoteItemId(noteItemId === item.menu_item_id ? null : item.menu_item_id)}
-                    className="text-xs text-muted-foreground mt-1 ml-[88px] hover:text-foreground"
-                  >
-                    {noteItemId === item.menu_item_id ? 'Sluiten' : 'Notitie'}
-                  </button>
                 </motion.div>
               ))}
             </AnimatePresence>
 
             {store.orderItems.length === 0 && (
-              <p className="text-center text-muted-foreground py-16 text-sm">
-                Tik op een product om toe te voegen
-              </p>
+              <p className="text-center text-muted-foreground py-12 text-sm">Tik op een product</p>
             )}
           </div>
 
-          <div className="border-t border-border p-4 space-y-3">
+          {/* Cart footer */}
+          <div className="border-t border-border p-3 space-y-2 shrink-0">
             {store.korting > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">
@@ -275,8 +230,8 @@ export default function PosBestelling() {
                 <span className="text-destructive">-€{(subtotaal - totaal).toFixed(2)}</span>
               </div>
             )}
-            <div className="flex justify-between text-lg font-bold">
-              <span>Totaal</span>
+            <div className="flex justify-between text-xl font-bold">
+              <span className="text-foreground">Totaal</span>
               <span className="text-primary">€{totaal.toFixed(2)}</span>
             </div>
 
@@ -285,30 +240,29 @@ export default function PosBestelling() {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowKorting(true)}
                 disabled={store.orderItems.length === 0}
-                className="touch-target flex-1 py-3 rounded-lg bg-secondary text-secondary-foreground font-medium flex items-center justify-center gap-2 disabled:opacity-40"
+                className="flex-1 py-3 rounded-lg bg-secondary text-secondary-foreground font-medium flex items-center justify-center gap-1 disabled:opacity-40 text-sm"
               >
-                <Percent className="w-4 h-4" />
-                Korting
+                <Percent className="w-4 h-4" /> Korting
               </motion.button>
+              {store.orderItems.length > 0 && (
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleClear}
+                  className="py-3 px-4 rounded-lg bg-destructive/20 text-destructive font-medium text-sm"
+                >
+                  {confirmClear ? 'Bevestig' : 'Leeg'}
+                </motion.button>
+              )}
             </div>
 
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowAfrekenen(true)}
               disabled={store.orderItems.length === 0}
-              className="touch-target w-full py-4 rounded-lg bg-primary text-primary-foreground font-bold text-lg disabled:opacity-40"
+              className="w-full py-4 rounded-lg bg-primary text-primary-foreground font-bold text-lg disabled:opacity-40"
             >
               Afrekenen
             </motion.button>
-
-            {store.orderItems.length > 0 && (
-              <button
-                onClick={handleClear}
-                className="w-full text-center text-sm text-muted-foreground hover:text-destructive"
-              >
-                {confirmClear ? 'Bevestig leegmaken' : 'Leegmaken'}
-              </button>
-            )}
           </div>
         </div>
       </div>
