@@ -47,7 +47,6 @@ export default function RestaurantDashboard() {
     ? [
         { label: 'Plattegrond', path: '/restaurant/dashboard', icon: Map },
         { label: 'Bestellingen', path: '/restaurant/bestellingen', icon: ClipboardList },
-        { label: 'POS Kassa', path: '/pos/bestelling', icon: Monitor },
       ]
     : [
         { label: 'Overzicht', path: '/restaurant/dashboard', icon: LayoutDashboard },
