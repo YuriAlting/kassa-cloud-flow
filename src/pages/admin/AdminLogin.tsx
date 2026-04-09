@@ -15,29 +15,34 @@ export default function AdminLogin() {
     setError('');
     setLoading(true);
 
-    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (authError || !data.user) {
-      setError('Ongeldige inloggegevens');
+      if (authError || !data.user) {
+        setError('Ongeldige inloggegevens');
+        setLoading(false);
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError || !profile || profile.role !== 'superadmin') {
+        setError('Geen toegang');
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
+
+      navigate('/admin/dashboard');
+    } catch (err) {
+      setError('Er is iets misgegaan. Probeer opnieuw.');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    // Check superadmin role via profiles
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', data.user.id)
-      .single();
-
-    if (!profile || profile.role !== 'superadmin') {
-      setError('Geen toegang');
-      await supabase.auth.signOut();
-      setLoading(false);
-      return;
-    }
-
-    navigate('/admin/dashboard');
   };
 
   return (
