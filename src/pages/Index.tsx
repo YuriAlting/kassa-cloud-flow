@@ -19,13 +19,20 @@ export default function Index() {
         <div className="space-y-3 w-full max-w-xs mx-auto">
           <motion.button
             whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('/admin')}
+            onClick={() => navigate('/login')}
             className="touch-target w-full py-4 rounded-lg bg-primary text-primary-foreground font-semibold text-lg"
+          >
+            Inloggen
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => navigate('/admin')}
+            className="touch-target w-full py-3 rounded-lg bg-secondary text-secondary-foreground font-medium"
           >
             Superadmin
           </motion.button>
           <p className="text-sm text-muted-foreground">
-            POS terminals zijn beschikbaar via <code className="text-foreground">/pos/[restaurant-slug]</code>
+            POS terminals: <code className="text-foreground">/pos/[slug]</code>
           </p>
         </div>
       </motion.div>
