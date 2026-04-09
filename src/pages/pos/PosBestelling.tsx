@@ -53,7 +53,7 @@ export default function PosBestelling() {
   }, [store.restaurantId]);
 
   async function loadData() {
-    const [{ data: cats }, { data: items }] = await Promise.all([
+    const [{ data: cats }, { data: items }, { data: opts }] = await Promise.all([
       supabase
         .from('categories')
         .select('id, name')
@@ -66,6 +66,10 @@ export default function PosBestelling() {
         .eq('restaurant_id', store.restaurantId!)
         .eq('is_active', true)
         .order('sort_order'),
+      supabase
+        .from('product_options')
+        .select('id, menu_item_id, name, price')
+        .in('menu_item_id', (await supabase.from('menu_items').select('id').eq('restaurant_id', store.restaurantId!)).data?.map(i => i.id) || []),
     ]);
 
     if (cats) {
@@ -73,6 +77,14 @@ export default function PosBestelling() {
       if (cats.length > 0) setActiveCategoryId(cats[0].id);
     }
     if (items) setMenuItems(items);
+    if (opts) {
+      const grouped: Record<string, ProductOption[]> = {};
+      opts.forEach(o => {
+        if (!grouped[o.menu_item_id]) grouped[o.menu_item_id] = [];
+        grouped[o.menu_item_id].push(o);
+      });
+      setProductOptions(grouped);
+    }
   }
 
   const filtered = menuItems.filter(p => {
