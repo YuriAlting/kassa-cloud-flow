@@ -28,7 +28,7 @@ export default function Login() {
         .from('profiles')
         .select('role')
         .eq('id', data.user.id)
-        .single();
+        .maybeSingle();
 
       if (profileError || !profile) {
         setError('Geen profiel gevonden. Neem contact op met de beheerder.');

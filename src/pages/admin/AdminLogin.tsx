@@ -28,7 +28,7 @@ export default function AdminLogin() {
         .from('profiles')
         .select('role')
         .eq('id', data.user.id)
-        .single();
+        .maybeSingle();
 
       if (profileError || !profile || profile.role !== 'superadmin') {
         setError('Geen toegang');
