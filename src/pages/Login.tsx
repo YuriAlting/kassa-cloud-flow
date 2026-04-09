@@ -42,7 +42,7 @@ export default function Login() {
       } else if (profile.role === 'owner') {
         navigate('/restaurant/dashboard');
       } else {
-        navigate('/pos/dashboard');
+        navigate('/restaurant/dashboard');
       }
     } catch (err) {
       setError('Er is iets misgegaan. Probeer opnieuw.');
