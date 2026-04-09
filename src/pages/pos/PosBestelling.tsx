@@ -309,6 +309,21 @@ export default function PosBestelling() {
       </div>
 
       {showKorting && <PosKortingModal onClose={() => setShowKorting(false)} />}
+      {optionsModal && (
+        <PosOptionsModal
+          itemName={optionsModal.item.name}
+          options={productOptions[optionsModal.item.id] || []}
+          onSelect={(opt) => {
+            store.addItem({
+              id: optionsModal.item.id,
+              name: `${optionsModal.item.name} - ${opt.name}`,
+              price: opt.price,
+            });
+            setOptionsModal(null);
+          }}
+          onClose={() => setOptionsModal(null)}
+        />
+      )}
     </div>
   );
 }
