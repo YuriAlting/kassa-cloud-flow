@@ -6,11 +6,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { usePosStore } from '@/stores/posStore';
 
 interface Props {
-  slug: string;
   onClose: () => void;
 }
 
-export function PosAfrekenen({ slug, onClose }: Props) {
+export function PosAfrekenen({ onClose }: Props) {
   const navigate = useNavigate();
   const store = usePosStore();
   const totaal = store.getTotaal();
@@ -29,7 +28,6 @@ export function PosAfrekenen({ slug, onClose }: Props) {
 
     setSaving(true);
 
-    // Create order
     const { data: order } = await supabase.from('orders').insert({
       restaurant_id: store.restaurantId,
       created_by: store.profileId,
@@ -38,7 +36,6 @@ export function PosAfrekenen({ slug, onClose }: Props) {
       status: 'completed',
     }).select('id').single();
 
-    // Create order items
     if (order) {
       const orderItems = store.orderItems.map(i => ({
         order_id: order.id,
@@ -54,7 +51,7 @@ export function PosAfrekenen({ slug, onClose }: Props) {
     setDone(true);
     setTimeout(() => {
       store.clearOrder();
-      navigate(`/pos/${slug}/dashboard`);
+      navigate('/pos/dashboard');
     }, 1500);
   };
 
@@ -78,58 +75,51 @@ export function PosAfrekenen({ slug, onClose }: Props) {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md space-y-8">
-        <div className="flex items-center gap-4">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={onClose} className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
-            <ArrowLeft className="w-5 h-5" />
+      <div className="surface w-full max-w-md p-6 space-y-6">
+        <div className="flex items-center gap-3">
+          <motion.button whileTap={{ scale: 0.9 }} onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-lg bg-secondary">
+            <ArrowLeft className="w-5 h-5 text-foreground" />
           </motion.button>
-          <h1 className="text-xl font-bold">Afrekenen</h1>
+          <h2 className="text-xl font-bold">Afrekenen</h2>
         </div>
 
         <div className="text-center">
-          <p className="text-muted-foreground text-sm">Te betalen</p>
-          <p className="text-5xl font-bold text-primary">€{totaal.toFixed(2)}</p>
+          <p className="text-muted-foreground text-sm">Totaal</p>
+          <p className="text-4xl font-bold text-primary">€{totaal.toFixed(2)}</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setBetaalwijze('pin')}
-            className={`touch-target p-6 rounded-lg font-bold text-lg ${
-              betaalwijze === 'pin' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
-            }`}
-          >
-            💳 PIN
-          </motion.button>
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setBetaalwijze('contant')}
-            className={`touch-target p-6 rounded-lg font-bold text-lg ${
-              betaalwijze === 'contant' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
-            }`}
-          >
-            💵 Contant
-          </motion.button>
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-muted-foreground">Betaalwijze</p>
+          <div className="grid grid-cols-3 gap-2">
+            {['contant', 'pin', 'ideal'].map(m => (
+              <motion.button
+                key={m}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setBetaalwijze(m)}
+                className={`py-3 rounded-lg font-medium text-sm capitalize ${
+                  betaalwijze === m ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
+                }`}
+              >
+                {m}
+              </motion.button>
+            ))}
+          </div>
         </div>
 
         <AnimatePresence>
           {betaalwijze === 'contant' && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-4">
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Gegeven bedrag</p>
               <input
                 type="number"
+                step="0.01"
                 value={gegeven}
                 onChange={e => setGegeven(e.target.value)}
-                placeholder="Gegeven bedrag"
-                autoFocus
-                className="w-full px-4 py-4 rounded-lg bg-secondary text-foreground text-xl text-center font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="0.00"
+                className="w-full px-4 py-3 rounded-lg bg-secondary text-foreground text-lg font-bold text-center focus:outline-none focus:ring-2 focus:ring-primary"
               />
-              {gegevenNum > 0 && (
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">Wisselgeld</p>
-                  <p className={`text-3xl font-bold ${wisselgeld >= 0 ? 'text-success' : 'text-destructive'}`}>
-                    €{wisselgeld.toFixed(2)}
-                  </p>
-                </div>
+              {gegevenNum >= totaal && (
+                <p className="text-center text-lg font-bold text-primary">Wisselgeld: €{wisselgeld.toFixed(2)}</p>
               )}
             </motion.div>
           )}
@@ -139,11 +129,11 @@ export function PosAfrekenen({ slug, onClose }: Props) {
           whileTap={{ scale: 0.95 }}
           onClick={handleConfirm}
           disabled={!betaalwijze || saving || (betaalwijze === 'contant' && gegevenNum < totaal)}
-          className="touch-target w-full py-4 rounded-lg bg-primary text-primary-foreground font-bold text-lg disabled:opacity-40"
+          className="w-full py-4 rounded-lg bg-primary text-primary-foreground font-bold text-lg disabled:opacity-40"
         >
           {saving ? 'Verwerken...' : 'Bevestig betaling'}
         </motion.button>
-      </motion.div>
+      </div>
     </div>
   );
 }
