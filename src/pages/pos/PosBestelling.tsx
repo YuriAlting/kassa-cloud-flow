@@ -41,6 +41,8 @@ export default function PosBestelling() {
   const [showAfrekenen, setShowAfrekenen] = useState(false);
   const [noteItemId, setNoteItemId] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [productOptions, setProductOptions] = useState<Record<string, ProductOption[]>>({});
+  const [optionsModal, setOptionsModal] = useState<{ item: MenuItem } | null>(null);
 
   useEffect(() => {
     if (!store.restaurantId) {
