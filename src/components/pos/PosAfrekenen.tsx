@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, ArrowLeft } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { usePosStore } from '@/stores/posStore';
 
 interface Props {
@@ -29,47 +29,39 @@ export function PosAfrekenen({ slug, onClose }: Props) {
 
     setSaving(true);
 
-    await supabase.from('orders').insert({
+    // Create order
+    const { data: order } = await supabase.from('orders').insert({
       restaurant_id: store.restaurantId,
-      tafel_id: store.selectedTafelId,
-      medewerker_id: store.medewerkerId,
-      items: store.orderItems.map(i => ({
-        product_id: i.product_id,
-        naam: i.naam,
-        prijs: i.prijs,
-        aantal: i.aantal,
-        notitie: i.notitie,
-      })),
-      totaal: totaal,
-      korting: store.korting,
-      korting_type: store.kortingType,
-      betaalwijze,
-      status: 'betaald',
-    });
+      created_by: store.profileId,
+      total_amount: totaal,
+      source: 'pos',
+      status: 'completed',
+    }).select('id').single();
 
-    // Update table status back to vrij
-    if (store.selectedTafelId) {
-      await supabase
-        .from('tafels')
-        .update({ status: 'vrij' })
-        .eq('id', store.selectedTafelId);
+    // Create order items
+    if (order) {
+      const orderItems = store.orderItems.map(i => ({
+        order_id: order.id,
+        menu_item_id: i.menu_item_id,
+        name_snapshot: i.name_snapshot,
+        unit_price: i.unit_price,
+        quantity: i.quantity,
+      }));
+
+      await supabase.from('order_items').insert(orderItems);
     }
 
     setDone(true);
     setTimeout(() => {
       store.clearOrder();
-      navigate(`/pos/${slug}/tafels`);
+      navigate(`/pos/${slug}/dashboard`);
     }, 1500);
   };
 
   if (done) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="flex flex-col items-center gap-4"
-        >
+        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="flex flex-col items-center gap-4">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
@@ -86,17 +78,9 @@ export function PosAfrekenen({ slug, onClose }: Props) {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md space-y-8"
-      >
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md space-y-8">
         <div className="flex items-center gap-4">
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={onClose}
-            className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center"
-          >
+          <motion.button whileTap={{ scale: 0.9 }} onClick={onClose} className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
             <ArrowLeft className="w-5 h-5" />
           </motion.button>
           <h1 className="text-xl font-bold">Afrekenen</h1>
@@ -112,9 +96,7 @@ export function PosAfrekenen({ slug, onClose }: Props) {
             whileTap={{ scale: 0.95 }}
             onClick={() => setBetaalwijze('pin')}
             className={`touch-target p-6 rounded-lg font-bold text-lg ${
-              betaalwijze === 'pin'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-secondary-foreground'
+              betaalwijze === 'pin' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
             }`}
           >
             💳 PIN
@@ -123,9 +105,7 @@ export function PosAfrekenen({ slug, onClose }: Props) {
             whileTap={{ scale: 0.95 }}
             onClick={() => setBetaalwijze('contant')}
             className={`touch-target p-6 rounded-lg font-bold text-lg ${
-              betaalwijze === 'contant'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-secondary-foreground'
+              betaalwijze === 'contant' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
             }`}
           >
             💵 Contant
@@ -134,12 +114,7 @@ export function PosAfrekenen({ slug, onClose }: Props) {
 
         <AnimatePresence>
           {betaalwijze === 'contant' && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="space-y-4"
-            >
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-4">
               <input
                 type="number"
                 value={gegeven}

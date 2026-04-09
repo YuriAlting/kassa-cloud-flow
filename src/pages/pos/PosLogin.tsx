@@ -1,34 +1,35 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { usePosStore } from '@/stores/posStore';
-import { PinPad } from '@/components/pos/PinPad';
 
-interface Medewerker {
+interface StaffProfile {
   id: string;
-  naam: string;
-  rol: string;
+  full_name: string;
+  role: string;
 }
 
 export default function PosLogin() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { setRestaurant, setMedewerker } = usePosStore();
+  const { setRestaurant, setProfile } = usePosStore();
 
-  const [restaurant, setRestaurantData] = useState<{ id: string; naam: string } | null>(null);
-  const [medewerkers, setMedewerkers] = useState<Medewerker[]>([]);
-  const [selectedMedewerker, setSelectedMedewerker] = useState<Medewerker | null>(null);
-  const [pinError, setPinError] = useState(false);
+  const [restaurant, setRestaurantData] = useState<{ id: string; name: string } | null>(null);
+  const [staff, setStaff] = useState<StaffProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
 
   useEffect(() => {
     async function load() {
       const { data: rest } = await supabase
         .from('restaurants')
-        .select('id, naam')
+        .select('id, name')
         .eq('slug', slug)
-        .eq('actief', true)
+        .eq('is_active', true)
         .single();
 
       if (!rest) {
@@ -37,48 +38,53 @@ export default function PosLogin() {
       }
 
       setRestaurantData(rest);
-      setRestaurant(rest.id, rest.naam);
-
-      const { data: mw } = await supabase
-        .from('medewerkers')
-        .select('id, naam, rol')
-        .eq('restaurant_id', rest.id)
-        .eq('actief', true)
-        .order('naam');
-
-      setMedewerkers(mw || []);
+      setRestaurant(rest.id, rest.name);
       setLoading(false);
     }
     load();
   }, [slug]);
 
-  const handlePinSubmit = async (pin: string) => {
-    if (!selectedMedewerker) return;
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    setLoggingIn(true);
 
-    const { data } = await supabase
-      .from('medewerkers')
-      .select('id, naam, rol')
-      .eq('id', selectedMedewerker.id)
-      .eq('pincode', pin)
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error || !data.user) {
+      setLoginError('Ongeldige inloggegevens');
+      setLoggingIn(false);
+      return;
+    }
+
+    // Check profile belongs to this restaurant
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, full_name, role, restaurant_id')
+      .eq('id', data.user.id)
       .single();
 
-    if (data) {
-      setMedewerker(data.id, data.naam);
+    if (!profile) {
+      setLoginError('Geen profiel gevonden');
+      await supabase.auth.signOut();
+      setLoggingIn(false);
+      return;
+    }
 
-      // Log shift
-      await supabase.from('shifts').insert({
-        medewerker_id: data.id,
-        restaurant_id: restaurant!.id,
-      });
+    // Superadmin can access any restaurant, others must match
+    if (profile.role !== 'superadmin' && profile.restaurant_id !== restaurant?.id) {
+      setLoginError('Geen toegang tot dit restaurant');
+      await supabase.auth.signOut();
+      setLoggingIn(false);
+      return;
+    }
 
-      if (data.rol === 'manager' || data.rol === 'eigenaar') {
-        navigate(`/pos/${slug}/dashboard`);
-      } else {
-        navigate(`/pos/${slug}/tafels`);
-      }
+    setProfile(profile.id, profile.full_name || 'Gebruiker');
+
+    if (profile.role === 'owner' || profile.role === 'superadmin') {
+      navigate(`/pos/${slug}/dashboard`);
     } else {
-      setPinError(true);
-      setTimeout(() => setPinError(false), 500);
+      navigate(`/pos/${slug}/bestelling`);
     }
   };
 
@@ -95,60 +101,40 @@ export default function PosLogin() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md flex flex-col items-center gap-8"
+        className="w-full max-w-sm flex flex-col items-center gap-8"
       >
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-primary">{restaurant?.naam}</h1>
+          <h1 className="text-3xl font-bold text-primary">{restaurant?.name}</h1>
           <p className="text-muted-foreground mt-1">KassaCloud POS</p>
         </div>
 
-        <AnimatePresence mode="wait">
-          {!selectedMedewerker ? (
-            <motion.div
-              key="staff-list"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="w-full space-y-3"
-            >
-              <p className="text-center text-muted-foreground mb-4">Selecteer medewerker</p>
-              {medewerkers.map(mw => (
-                <motion.button
-                  key={mw.id}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => setSelectedMedewerker(mw)}
-                  className="w-full touch-target surface surface-hover flex items-center px-5 py-4 text-lg font-medium"
-                >
-                  <span className="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold mr-4">
-                    {mw.naam.charAt(0)}
-                  </span>
-                  {mw.naam}
-                  <span className="ml-auto text-sm text-muted-foreground capitalize">{mw.rol}</span>
-                </motion.button>
-              ))}
-              {medewerkers.length === 0 && (
-                <p className="text-center text-muted-foreground py-8">
-                  Geen medewerkers gevonden. Voeg medewerkers toe via het admin panel.
-                </p>
-              )}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="pin-entry"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-col items-center"
-            >
-              <p className="text-lg font-medium mb-2">{selectedMedewerker.naam}</p>
-              <PinPad
-                onSubmit={handlePinSubmit}
-                onCancel={() => setSelectedMedewerker(null)}
-                error={pinError}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <form onSubmit={handleLogin} className="w-full space-y-4">
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="E-mail"
+            required
+            className="w-full px-4 py-3 rounded-lg bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="Wachtwoord"
+            required
+            className="w-full px-4 py-3 rounded-lg bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          {loginError && <p className="text-destructive text-sm text-center">{loginError}</p>}
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            type="submit"
+            disabled={loggingIn}
+            className="touch-target w-full py-4 rounded-lg bg-primary text-primary-foreground font-bold text-lg disabled:opacity-50"
+          >
+            {loggingIn ? 'Inloggen...' : 'Inloggen'}
+          </motion.button>
+        </form>
       </motion.div>
     </div>
   );

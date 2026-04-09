@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, LogOut } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Restaurant {
   id: string;
-  naam: string;
+  name: string;
   slug: string;
-  actief: boolean;
-  aangemaakt_op: string;
+  is_active: boolean;
+  created_at: string;
   ordersToday: number;
   revenueToday: number;
 }
@@ -19,7 +19,7 @@ export default function AdminDashboard() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [newNaam, setNewNaam] = useState('');
+  const [newName, setNewName] = useState('');
   const [newSlug, setNewSlug] = useState('');
   const [creating, setCreating] = useState(false);
 
@@ -27,7 +27,6 @@ export default function AdminDashboard() {
     checkAuth();
     loadRestaurants();
 
-    // Realtime subscription
     const channel = supabase
       .channel('admin-orders')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
@@ -42,14 +41,13 @@ export default function AdminDashboard() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate('/admin'); return; }
 
-    const { data: role } = await supabase
-      .from('user_roles')
+    const { data: profile } = await supabase
+      .from('profiles')
       .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'superadmin')
+      .eq('id', user.id)
       .single();
 
-    if (!role) { navigate('/admin'); }
+    if (!profile || profile.role !== 'superadmin') { navigate('/admin'); }
   }
 
   async function loadRestaurants() {
@@ -58,21 +56,21 @@ export default function AdminDashboard() {
     const { data: rests } = await supabase
       .from('restaurants')
       .select('*')
-      .order('aangemaakt_op', { ascending: false });
+      .order('created_at', { ascending: false });
 
     if (!rests) { setLoading(false); return; }
 
     const { data: orders } = await supabase
       .from('orders')
-      .select('restaurant_id, totaal')
-      .gte('aangemaakt_op', today);
+      .select('restaurant_id, total_amount')
+      .gte('created_at', today);
 
     const enriched = rests.map(r => {
       const rOrders = orders?.filter(o => o.restaurant_id === r.id) || [];
       return {
         ...r,
         ordersToday: rOrders.length,
-        revenueToday: rOrders.reduce((s, o) => s + Number(o.totaal), 0),
+        revenueToday: rOrders.reduce((s, o) => s + Number(o.total_amount), 0),
       };
     });
 
@@ -81,23 +79,23 @@ export default function AdminDashboard() {
   }
 
   const handleCreate = async () => {
-    if (!newNaam || !newSlug) return;
+    if (!newName || !newSlug) return;
     setCreating(true);
 
     await supabase.from('restaurants').insert({
-      naam: newNaam,
+      name: newName,
       slug: newSlug.toLowerCase().replace(/[^a-z0-9-]/g, ''),
     });
 
-    setNewNaam('');
+    setNewName('');
     setNewSlug('');
     setShowCreate(false);
     setCreating(false);
     loadRestaurants();
   };
 
-  const toggleActive = async (id: string, actief: boolean) => {
-    await supabase.from('restaurants').update({ actief: !actief }).eq('id', id);
+  const toggleActive = async (id: string, isActive: boolean) => {
+    await supabase.from('restaurants').update({ is_active: !isActive }).eq('id', id);
     loadRestaurants();
   };
 
@@ -131,7 +129,6 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Create form */}
       {showCreate && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
@@ -141,8 +138,8 @@ export default function AdminDashboard() {
           <h3 className="font-semibold">Nieuw restaurant aanmaken</h3>
           <div className="grid grid-cols-2 gap-4">
             <input
-              value={newNaam}
-              onChange={e => { setNewNaam(e.target.value); setNewSlug(e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')); }}
+              value={newName}
+              onChange={e => { setNewName(e.target.value); setNewSlug(e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')); }}
               placeholder="Naam"
               className="px-4 py-3 rounded-lg bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
@@ -168,7 +165,6 @@ export default function AdminDashboard() {
         </motion.div>
       )}
 
-      {/* Restaurants table */}
       <div className="surface overflow-hidden">
         <table className="w-full">
           <thead>
@@ -189,14 +185,14 @@ export default function AdminDashboard() {
                 className="border-b border-border last:border-0"
               >
                 <td className="px-5 py-4">
-                  <p className="font-medium">{r.naam}</p>
+                  <p className="font-medium">{r.name}</p>
                   <p className="text-sm text-muted-foreground">/{r.slug}</p>
                 </td>
                 <td className="px-5 py-4">
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    r.actief ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'
+                    r.is_active ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'
                   }`}>
-                    {r.actief ? 'Actief' : 'Inactief'}
+                    {r.is_active ? 'Actief' : 'Inactief'}
                   </span>
                 </td>
                 <td className="px-5 py-4 text-right font-semibold">{r.ordersToday}</td>
@@ -204,10 +200,10 @@ export default function AdminDashboard() {
                 <td className="px-5 py-4 text-right">
                   <motion.button
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => toggleActive(r.id, r.actief)}
+                    onClick={() => toggleActive(r.id, r.is_active)}
                     className="px-3 py-1 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium"
                   >
-                    {r.actief ? 'Deactiveren' : 'Activeren'}
+                    {r.is_active ? 'Deactiveren' : 'Activeren'}
                   </motion.button>
                 </td>
               </motion.tr>
