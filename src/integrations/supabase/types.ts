@@ -46,6 +46,35 @@ export type Database = {
           },
         ]
       }
+      floor_sections: {
+        Row: {
+          id: string
+          name: string
+          restaurant_id: string
+          sort_order: number
+        }
+        Insert: {
+          id?: string
+          name: string
+          restaurant_id: string
+          sort_order?: number
+        }
+        Update: {
+          id?: string
+          name?: string
+          restaurant_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "floor_sections_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_items: {
         Row: {
           category_id: string | null
@@ -313,6 +342,60 @@ export type Database = {
           slug?: string
         }
         Relationships: []
+      }
+      tables: {
+        Row: {
+          floor_section_id: string | null
+          id: string
+          is_takeaway: boolean
+          position_x: number
+          position_y: number
+          restaurant_id: string
+          seats: number
+          shape: string
+          status: string
+          table_number: string
+        }
+        Insert: {
+          floor_section_id?: string | null
+          id?: string
+          is_takeaway?: boolean
+          position_x?: number
+          position_y?: number
+          restaurant_id: string
+          seats?: number
+          shape?: string
+          status?: string
+          table_number: string
+        }
+        Update: {
+          floor_section_id?: string | null
+          id?: string
+          is_takeaway?: boolean
+          position_x?: number
+          position_y?: number
+          restaurant_id?: string
+          seats?: number
+          shape?: string
+          status?: string
+          table_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tables_floor_section_id_fkey"
+            columns: ["floor_section_id"]
+            isOneToOne: false
+            referencedRelation: "floor_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tables_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
