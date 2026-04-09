@@ -15,31 +15,37 @@ export default function Login() {
     setError('');
     setLoading(true);
 
-    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (authError || !data.user) {
-      setError('Ongeldige inloggegevens');
+      if (authError || !data.user) {
+        setError('Ongeldige inloggegevens');
+        setLoading(false);
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError || !profile) {
+        setError('Geen profiel gevonden. Neem contact op met de beheerder.');
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
+
+      if (profile.role === 'superadmin') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/restaurant/dashboard');
+      }
+    } catch (err) {
+      setError('Er is iets misgegaan. Probeer opnieuw.');
+    } finally {
       setLoading(false);
-      return;
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', data.user.id)
-      .single();
-
-    if (!profile) {
-      setError('Geen profiel gevonden. Neem contact op met de beheerder.');
-      await supabase.auth.signOut();
-      setLoading(false);
-      return;
-    }
-
-    if (profile.role === 'superadmin') {
-      navigate('/admin/dashboard');
-    } else {
-      navigate('/restaurant/dashboard');
     }
   };
 
