@@ -64,7 +64,6 @@ export default function PosBestelling() {
       navigate('/login');
       return;
     }
-    // Sync store with auth profile
     store.setRestaurant(restaurantId, '');
     store.setProfile(profile!.id, profile!.full_name || 'Gebruiker');
     loadData();
@@ -102,8 +101,7 @@ export default function PosBestelling() {
   const subtotaal = store.getSubtotaal();
   const totaal = store.getTotaal();
 
-  const isStaff = profile?.role === 'staff';
-  const backPath = isStaff ? '/restaurant/dashboard' : '/pos/dashboard';
+  const backPath = '/restaurant/plattegrond';
 
   const handleClear = () => {
     if (confirmClear) {
@@ -128,7 +126,7 @@ export default function PosBestelling() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
+    <div className="h-[calc(100vh-0px)] flex flex-col bg-background overflow-hidden">
       {/* Header */}
       <header className="flex items-center gap-3 px-4 py-2 border-b border-border shrink-0">
         <motion.button
@@ -138,9 +136,7 @@ export default function PosBestelling() {
         >
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </motion.button>
-        <span className="font-semibold text-foreground text-lg">
-          {store.tableNumber ? `Tafel ${store.tableNumber}` : store.orderType === 'takeaway' ? 'Meenemen' : 'POS'}
-        </span>
+        <span className="font-semibold text-foreground text-lg">Kassa</span>
         <span className="text-sm text-muted-foreground">{profile?.full_name}</span>
       </header>
 
