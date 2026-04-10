@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { UtensilsCrossed, Tag, CreditCard, ShoppingCart, LogOut, LayoutDashboard, Monitor, Map, ClipboardList } from 'lucide-react';
+import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { UtensilsCrossed, Tag, ShoppingCart, LogOut, LayoutDashboard, Monitor, Map, ClipboardList, Menu, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function RestaurantDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { profile, signOut, loading } = useAuth();
   const [restaurantName, setRestaurantName] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -45,7 +47,8 @@ export default function RestaurantDashboard() {
 
   const navItems = isStaff
     ? [
-        { label: 'Plattegrond', path: '/restaurant/dashboard', icon: Map },
+        { label: 'Plattegrond', path: '/restaurant/plattegrond', icon: Map },
+        { label: 'Kassa', path: '/restaurant/kassa', icon: Monitor },
         { label: 'Bestellingen', path: '/restaurant/bestellingen', icon: ClipboardList },
       ]
     : [
@@ -53,28 +56,62 @@ export default function RestaurantDashboard() {
         { label: 'Plattegrond', path: '/restaurant/plattegrond', icon: Map },
         { label: 'Menu', path: '/restaurant/menu', icon: UtensilsCrossed },
         { label: 'Categorieën', path: '/restaurant/categories', icon: Tag },
-        { label: 'Betaalmethoden', path: '/restaurant/payments', icon: CreditCard },
         { label: 'Bestellingen', path: '/restaurant/orders', icon: ShoppingCart },
-        { label: 'POS Kassa', path: '/pos/bestelling', icon: Monitor },
+        { label: 'Kassa', path: '/restaurant/kassa', icon: Monitor },
       ];
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex relative">
+      {/* Mobile hamburger trigger — always visible */}
+      <button
+        onClick={() => setSidebarOpen(true)}
+        className="fixed top-3 left-3 z-50 w-10 h-10 flex items-center justify-center rounded-lg bg-card border border-border shadow-lg lg:hidden"
+      >
+        <Menu className="w-5 h-5 text-foreground" />
+      </button>
+
+      {/* Sidebar overlay on mobile */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
-      <aside className="w-64 border-r border-border flex flex-col bg-card">
-        <div className="p-5 border-b border-border">
-          <h1 className="text-lg font-bold text-primary">AIA Kassa</h1>
-          <p className="text-sm text-muted-foreground truncate">{restaurantName}</p>
+      <aside className={`
+        w-64 border-r border-border flex flex-col bg-card shrink-0
+        fixed inset-y-0 left-0 z-50 transform transition-transform duration-200
+        lg:relative lg:translate-x-0
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <div className="p-5 border-b border-border flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-bold text-primary">AIA Kassa</h1>
+            <p className="text-sm text-muted-foreground truncate">{restaurantName}</p>
+          </div>
+          <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1">
+            <X className="w-5 h-5 text-muted-foreground" />
+          </button>
         </div>
 
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map(item => (
-            <Link key={item.path} to={item.path}>
+            <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)}>
               <motion.div
                 whileTap={{ scale: 0.97 }}
-                className="flex items-center gap-3 px-4 py-3 rounded-lg text-secondary-foreground hover:bg-secondary transition-colors"
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  location.pathname === item.path
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-secondary-foreground hover:bg-secondary'
+                }`}
               >
-                <item.icon className="w-5 h-5 text-muted-foreground" />
+                <item.icon className="w-5 h-5" />
                 <span className="font-medium text-sm">{item.label}</span>
               </motion.div>
             </Link>
@@ -94,7 +131,7 @@ export default function RestaurantDashboard() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto lg:ml-0">
         <Outlet />
       </main>
     </div>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Package, Plus, Trash2, Edit2, X, DoorOpen, Monitor, Clock } from 'lucide-react';
+import { Package, Plus, Trash2, Edit2, X, Clock, Monitor } from 'lucide-react';
 import { usePosStore } from '@/stores/posStore';
 
 interface FloorSection {
@@ -31,6 +31,11 @@ interface ActiveOrder {
   order_number: number;
   created_at: string;
   table_id: string | null;
+}
+
+interface OrderItemDetail {
+  name_snapshot: string;
+  quantity: number;
 }
 
 interface Restaurant {
@@ -131,7 +136,7 @@ function TableShape({ table, activeOrder, onClick }: { table: TableItem; activeO
   );
 }
 
-// --- Table Form Modal (for owners/superadmin) ---
+// --- Table Form Modal ---
 function TableFormModal({ sectionId, restaurantId, existingTable, onClose, onSaved }: {
   sectionId: string | null; restaurantId: string; existingTable?: TableItem; onClose: () => void; onSaved: () => void;
 }) {
@@ -227,8 +232,8 @@ export default function FloorPlanPage() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState<TableItem | null>(null);
-  const [showOrderChoice, setShowOrderChoice] = useState<TableItem | null>(null);
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
+  const [orderDetails, setOrderDetails] = useState<OrderItemDetail[]>([]);
 
   // Edit mode state
   const [showAddTable, setShowAddTable] = useState(false);
@@ -241,6 +246,7 @@ export default function FloorPlanPage() {
 
   // Afhaal order details
   const [afhaalOrderDetail, setAfhaalOrderDetail] = useState<ActiveOrder | null>(null);
+  const [afhaalItems, setAfhaalItems] = useState<OrderItemDetail[]>([]);
 
   const role = profile?.role;
   const canEdit = role === 'superadmin' || role === 'owner';
@@ -286,8 +292,16 @@ export default function FloorPlanPage() {
 
   const updateTableStatus = async (tableId: string, newStatus: string) => {
     await supabase.from('tables').update({ status: newStatus }).eq('id', tableId);
+    // If marking vrij, also mark associated orders as delivered
+    if (newStatus === 'vrij') {
+      const tableOrders = activeOrders.filter(o => o.table_id === tableId);
+      for (const o of tableOrders) {
+        await supabase.from('orders').update({ status: 'delivered' }).eq('id', o.id);
+      }
+    }
     setTables(prev => prev.map(t => t.id === tableId ? { ...t, status: newStatus } : t));
     setSelectedTable(null);
+    fetchData();
   };
 
   const deleteTable = async (tableId: string) => {
@@ -302,31 +316,38 @@ export default function FloorPlanPage() {
     fetchData();
   };
 
-  const handleTableClick = (table: TableItem) => {
-    if (table.is_takeaway) return; // handled separately
-    if (role === 'staff') {
-      if (table.status === 'vrij') {
-        setShowOrderChoice(table);
+  const loadOrderItems = async (orderId: string) => {
+    const { data } = await supabase.from('order_items').select('name_snapshot, quantity').eq('order_id', orderId);
+    return (data || []) as OrderItemDetail[];
+  };
+
+  const handleTableClick = async (table: TableItem) => {
+    if (table.is_takeaway) return;
+
+    if (table.status === 'vrij') {
+      // For staff: go to kassa to take order, for owner/admin: show edit options
+      if (role === 'staff') {
+        navigate('/restaurant/kassa');
       } else {
         setSelectedTable(table);
       }
     } else {
+      // Show table details + order info
+      const order = activeOrders.find(o => o.table_id === table.id);
+      if (order) {
+        const items = await loadOrderItems(order.id);
+        setOrderDetails(items);
+      } else {
+        setOrderDetails([]);
+      }
       setSelectedTable(table);
     }
   };
 
-  const startOrder = (table: TableItem | null, type: 'dine_in' | 'takeaway') => {
-    store.clearOrder();
-    if (effectiveRestaurantId) store.setRestaurant(effectiveRestaurantId, '');
-    if (profile) store.setProfile(profile.id, profile.full_name || 'Gebruiker');
-    store.setOrderType(type);
-    if (table && type === 'dine_in') {
-      store.setTable(table.id, table.table_number);
-    } else {
-      store.setTable(null, null);
-    }
-    setShowOrderChoice(null);
-    navigate('/pos/bestelling');
+  const handleAfhaalClick = async (order: ActiveOrder) => {
+    const items = await loadOrderItems(order.id);
+    setAfhaalItems(items);
+    setAfhaalOrderDetail(order);
   };
 
   const markAfhaalCollected = async (orderId: string) => {
@@ -336,8 +357,6 @@ export default function FloorPlanPage() {
   };
 
   const sectionTables = tables.filter(t => !t.is_takeaway && t.floor_section_id === activeSection);
-  
-  // Afhaal spots: show active takeaway orders
   const afhaalOrders = activeOrders.filter(o => !o.table_id);
   const AFHAAL_SPOTS = 10;
 
@@ -393,40 +412,38 @@ export default function FloorPlanPage() {
             </motion.button>
           </div>
         )}
-
-        {/* Meenemen button for staff */}
-        {role === 'staff' && (
-          <motion.button whileTap={{ scale: 0.95 }} onClick={() => startOrder(null, 'takeaway')}
-            className="ml-auto px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-bold flex items-center gap-2">
-            <Package className="w-4 h-4" /> Meenemen
-          </motion.button>
-        )}
       </div>
 
-      {/* Legend + indicators */}
+      {/* Legend */}
       <div className="flex gap-4 mb-4 flex-wrap items-center">
         {Object.entries(STATUS_COLORS).map(([key, val]) => (
           <div key={key} className="flex items-center gap-2 text-xs text-muted-foreground">
             <div className="w-3 h-3 rounded" style={{ backgroundColor: val.bg }} /> {val.label}
           </div>
         ))}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground ml-4">
-          <Monitor className="w-3.5 h-3.5" /> Kassa
-        </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <DoorOpen className="w-3.5 h-3.5" /> Ingang
-        </div>
       </div>
 
       {/* Floor plan area */}
       <div className="flex-1 relative rounded-xl bg-[#111] border border-border overflow-hidden min-h-[400px]">
-        {/* Kassa indicator */}
-        <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-card/80 border border-border rounded-lg px-3 py-1.5 text-xs font-semibold text-muted-foreground z-10">
-          <Monitor className="w-4 h-4" /> Kassa
+        {/* Kassa — large block */}
+        <div className="absolute top-4 right-4 z-10 w-28 h-20 rounded-xl border-2 border-primary/60 bg-card/90 flex flex-col items-center justify-center shadow-lg">
+          <Monitor className="w-7 h-7 text-primary mb-1" />
+          <span className="text-xs font-bold text-foreground">Kassa</span>
         </div>
-        {/* Ingang indicator */}
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-card/80 border border-border rounded-lg px-3 py-1.5 text-xs font-semibold text-muted-foreground z-10">
-          <DoorOpen className="w-4 h-4" /> Ingang
+
+        {/* Ingang — door style */}
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-10">
+          <div className="relative w-24 h-10 flex items-end justify-center">
+            {/* Wall gaps */}
+            <div className="absolute bottom-0 left-0 w-2 h-full bg-border/60 rounded-t" />
+            <div className="absolute bottom-0 right-0 w-2 h-full bg-border/60 rounded-t" />
+            {/* Door arc */}
+            <svg width="80" height="40" viewBox="0 0 80 40" className="absolute bottom-0 left-2">
+              <path d="M 0 40 A 40 40 0 0 1 40 0" fill="none" stroke="hsl(var(--muted-foreground) / 0.3)" strokeWidth="1.5" strokeDasharray="4 2" />
+              <line x1="0" y1="40" x2="40" y2="0" stroke="hsl(var(--muted-foreground) / 0.4)" strokeWidth="1.5" />
+            </svg>
+            <span className="relative z-10 text-[10px] font-bold text-muted-foreground mb-1 bg-[#111] px-1.5">Ingang</span>
+          </div>
         </div>
 
         {sectionTables.map(table => (
@@ -452,7 +469,7 @@ export default function FloorPlanPage() {
             const isActive = !!order;
             return (
               <motion.button key={i} whileTap={{ scale: 0.9 }}
-                onClick={() => { if (order) setAfhaalOrderDetail(order); }}
+                onClick={() => { if (order) handleAfhaalClick(order); }}
                 className="w-12 h-12 rounded-full flex items-center justify-center text-xs font-bold text-white border-2 transition-colors"
                 style={{
                   backgroundColor: isActive ? 'hsl(0 72% 51%)' : 'hsl(142 76% 36%)',
@@ -466,32 +483,7 @@ export default function FloorPlanPage() {
         </div>
       </div>
 
-      {/* Order choice popup (Hier opeten / Meenemen) */}
-      <AnimatePresence>
-        {showOrderChoice && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowOrderChoice(null)}>
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              onClick={e => e.stopPropagation()}
-              className="bg-card border border-border rounded-2xl p-6 w-full max-w-xs shadow-2xl space-y-4">
-              <h2 className="text-lg font-bold text-foreground text-center">Tafel {showOrderChoice.table_number}</h2>
-              <p className="text-sm text-muted-foreground text-center">Wat wil de klant?</p>
-              <div className="space-y-3">
-                <motion.button whileTap={{ scale: 0.95 }} onClick={() => startOrder(showOrderChoice, 'dine_in')}
-                  className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-bold text-lg">
-                  🍽️ Hier opeten
-                </motion.button>
-                <motion.button whileTap={{ scale: 0.95 }} onClick={() => startOrder(showOrderChoice, 'takeaway')}
-                  className="w-full py-4 rounded-xl bg-secondary text-foreground font-bold text-lg">
-                  📦 Meenemen
-                </motion.button>
-              </div>
-              <button onClick={() => setShowOrderChoice(null)} className="w-full py-2 text-sm text-muted-foreground">Annuleren</button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Table status modal (for occupied tables) */}
+      {/* Table status modal */}
       <AnimatePresence>
         {selectedTable && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setSelectedTable(null)}>
@@ -515,25 +507,71 @@ export default function FloorPlanPage() {
               {(() => {
                 const order = activeOrders.find(o => o.table_id === selectedTable.id);
                 if (order) return (
-                  <div className="mb-3 p-3 rounded-lg bg-secondary text-sm">
-                    <p className="font-bold text-foreground">Bestelling #{order.order_number}</p>
-                    <TimeAgo since={order.created_at} />
+                  <div className="mb-3 p-3 rounded-lg bg-secondary text-sm space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="font-bold text-foreground">Bestelling #{order.order_number}</p>
+                      <TimeAgo since={order.created_at} />
+                    </div>
+                    {orderDetails.length > 0 && (
+                      <ul className="space-y-1">
+                        {orderDetails.map((item, i) => (
+                          <li key={i} className="flex justify-between text-xs text-foreground">
+                            <span>{item.name_snapshot}</span>
+                            <span className="text-muted-foreground">×{item.quantity}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {/* Add items button for staff */}
+                    {role === 'staff' && (
+                      <motion.button whileTap={{ scale: 0.95 }} onClick={() => {
+                        store.clearOrder();
+                        if (effectiveRestaurantId) store.setRestaurant(effectiveRestaurantId, '');
+                        if (profile) store.setProfile(profile.id, profile.full_name || 'Gebruiker');
+                        store.setTable(selectedTable.id, selectedTable.table_number);
+                        store.setOrderType('dine_in');
+                        setSelectedTable(null);
+                        navigate('/restaurant/kassa');
+                      }}
+                        className="w-full py-2 rounded-lg bg-primary/20 text-primary font-bold text-xs">
+                        + Items toevoegen
+                      </motion.button>
+                    )}
                   </div>
                 );
                 return null;
               })()}
 
+              {/* Status buttons */}
               <p className="text-xs text-muted-foreground mb-2">Status wijzigen:</p>
               <div className="space-y-2">
-                {Object.entries(STATUS_COLORS).map(([key, val]) => (
-                  <motion.button key={key} whileTap={{ scale: 0.95 }}
-                    onClick={() => updateTableStatus(selectedTable.id, key)}
-                    className={`w-full py-3 rounded-lg text-sm font-bold text-white transition-opacity ${
-                      selectedTable.status === key ? 'ring-2 ring-white/50' : 'opacity-80 hover:opacity-100'
-                    }`} style={{ backgroundColor: val.bg }}>
-                    {val.label}
+                {selectedTable.status === 'bezet' && (
+                  <>
+                    <motion.button whileTap={{ scale: 0.95 }}
+                      onClick={() => updateTableStatus(selectedTable.id, 'geleverd')}
+                      className="w-full py-3 rounded-lg text-sm font-bold text-white"
+                      style={{ backgroundColor: STATUS_COLORS.geleverd.bg }}>
+                      🍽️ Bezorgd
+                    </motion.button>
+                    <motion.button whileTap={{ scale: 0.95 }}
+                      onClick={() => updateTableStatus(selectedTable.id, 'rekening')}
+                      className="w-full py-3 rounded-lg text-sm font-bold text-white"
+                      style={{ backgroundColor: STATUS_COLORS.rekening.bg }}>
+                      💰 Rekening
+                    </motion.button>
+                  </>
+                )}
+                {(selectedTable.status === 'geleverd' || selectedTable.status === 'rekening') && (
+                  <motion.button whileTap={{ scale: 0.95 }}
+                    onClick={() => updateTableStatus(selectedTable.id, 'vrij')}
+                    className="w-full py-3 rounded-lg text-sm font-bold text-white"
+                    style={{ backgroundColor: STATUS_COLORS.vrij.bg }}>
+                    ✅ Tafel vrijmaken
                   </motion.button>
-                ))}
+                )}
+                {selectedTable.status === 'vrij' && canEdit && (
+                  <p className="text-xs text-muted-foreground text-center py-2">Tafel is vrij</p>
+                )}
               </div>
               <button onClick={() => setSelectedTable(null)}
                 className="w-full mt-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground bg-secondary hover:bg-secondary/80 transition-colors">
@@ -553,9 +591,19 @@ export default function FloorPlanPage() {
               className="bg-card border border-border rounded-2xl p-6 w-full max-w-xs shadow-2xl space-y-4">
               <h2 className="text-lg font-bold text-foreground">Afhaal #{afhaalOrderDetail.order_number}</h2>
               <p className="text-sm text-muted-foreground"><TimeAgo since={afhaalOrderDetail.created_at} /></p>
+              {afhaalItems.length > 0 && (
+                <ul className="space-y-1 bg-secondary rounded-lg p-3">
+                  {afhaalItems.map((item, i) => (
+                    <li key={i} className="flex justify-between text-sm text-foreground">
+                      <span>{item.name_snapshot}</span>
+                      <span className="text-muted-foreground">×{item.quantity}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <motion.button whileTap={{ scale: 0.95 }} onClick={() => markAfhaalCollected(afhaalOrderDetail.id)}
                 className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-                ✅ Opgehaald — markeer als klaar
+                ✅ Bestelling opgehaald
               </motion.button>
               <button onClick={() => setAfhaalOrderDetail(null)}
                 className="w-full py-2 text-sm text-muted-foreground">Sluiten</button>
