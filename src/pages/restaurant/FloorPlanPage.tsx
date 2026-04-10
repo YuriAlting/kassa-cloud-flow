@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Package, Plus, Trash2, Edit2, X, Clock, Monitor } from 'lucide-react';
+import { Package, Trash2, Edit2, X, Clock, Monitor, Plus } from 'lucide-react';
 import { usePosStore } from '@/stores/posStore';
 
 interface FloorSection {
@@ -36,6 +36,7 @@ interface ActiveOrder {
 interface OrderItemDetail {
   name_snapshot: string;
   quantity: number;
+  unit_price: number;
 }
 
 interface Restaurant {
@@ -47,7 +48,6 @@ const STATUS_COLORS: Record<string, { bg: string; border: string; label: string 
   vrij: { bg: 'hsl(142 76% 36%)', border: 'hsl(142 76% 46%)', label: 'Vrij' },
   bezet: { bg: 'hsl(0 72% 51%)', border: 'hsl(0 72% 61%)', label: 'Bezet' },
   geleverd: { bg: 'hsl(142 76% 25%)', border: 'hsl(142 76% 35%)', label: 'Geleverd' },
-  rekening: { bg: 'hsl(38 92% 50%)', border: 'hsl(38 92% 60%)', label: 'Rekening' },
 };
 
 function TimeAgo({ since }: { since: string }) {
@@ -136,7 +136,7 @@ function TableShape({ table, activeOrder, onClick }: { table: TableItem; activeO
   );
 }
 
-// --- Table Form Modal ---
+// --- Table Form Modal (edit only, for owners/superadmin) ---
 function TableFormModal({ sectionId, restaurantId, existingTable, onClose, onSaved }: {
   sectionId: string | null; restaurantId: string; existingTable?: TableItem; onClose: () => void; onSaved: () => void;
 }) {
@@ -198,25 +198,25 @@ function TableFormModal({ sectionId, restaurantId, existingTable, onClose, onSav
   );
 }
 
-function SectionFormModal({ restaurantId, onClose, onSaved }: { restaurantId: string; onClose: () => void; onSaved: () => void; }) {
-  const [name, setName] = useState('');
-  const [saving, setSaving] = useState(false);
-  const handleSave = async () => {
-    if (!name) return; setSaving(true);
-    await supabase.from('floor_sections').insert({ restaurant_id: restaurantId, name, sort_order: 99 });
-    setSaving(false); onSaved(); onClose();
-  };
+// --- Payment Popup ---
+function PaymentPopup({ onPay, onClose }: { onPay: (method: string) => void; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-        onClick={e => e.stopPropagation()} className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4">
-        <h2 className="text-lg font-bold text-foreground">Nieuwe sectie</h2>
-        <input value={name} onChange={e => setName(e.target.value)} placeholder="Sectienaam (bijv. Terras)"
-          className="w-full px-4 py-3 rounded-lg bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
-        <motion.button whileTap={{ scale: 0.95 }} onClick={handleSave} disabled={saving}
-          className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50">
-          {saving ? 'Opslaan...' : 'Sectie toevoegen'}
-        </motion.button>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={onClose}>
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+        onClick={e => e.stopPropagation()}
+        className="bg-card border border-border rounded-2xl p-6 w-full max-w-xs shadow-2xl space-y-4">
+        <h2 className="text-lg font-bold text-foreground text-center">Betaalwijze</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <motion.button whileTap={{ scale: 0.95 }} onClick={() => onPay('pin')}
+            className="py-4 rounded-xl bg-primary text-primary-foreground font-bold text-lg">
+            💳 PIN
+          </motion.button>
+          <motion.button whileTap={{ scale: 0.95 }} onClick={() => onPay('contant')}
+            className="py-4 rounded-xl bg-secondary text-foreground font-bold text-lg">
+            💵 Cash
+          </motion.button>
+        </div>
+        <button onClick={onClose} className="w-full py-2 text-sm text-muted-foreground">Annuleren</button>
       </motion.div>
     </div>
   );
@@ -235,10 +235,13 @@ export default function FloorPlanPage() {
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
   const [orderDetails, setOrderDetails] = useState<OrderItemDetail[]>([]);
 
-  // Edit mode state
-  const [showAddTable, setShowAddTable] = useState(false);
+  // Edit mode state (owner/superadmin only)
   const [editingTable, setEditingTable] = useState<TableItem | null>(null);
-  const [showAddSection, setShowAddSection] = useState(false);
+
+  // Payment popup
+  const [showPayment, setShowPayment] = useState(false);
+  const [payingTableId, setPayingTableId] = useState<string | null>(null);
+  const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
 
   // Superadmin: restaurant selector
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -290,15 +293,21 @@ export default function FloorPlanPage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  const closeOrderAndFreeTable = async (orderId: string, tableId: string | null) => {
+    await supabase.from('orders').update({ status: 'delivered' }).eq('id', orderId);
+    if (tableId) {
+      await supabase.from('tables').update({ status: 'vrij' }).eq('id', tableId);
+      setTables(prev => prev.map(t => t.id === tableId ? { ...t, status: 'vrij' } : t));
+    }
+    setSelectedTable(null);
+    setShowPayment(false);
+    setPayingTableId(null);
+    setPayingOrderId(null);
+    fetchData();
+  };
+
   const updateTableStatus = async (tableId: string, newStatus: string) => {
     await supabase.from('tables').update({ status: newStatus }).eq('id', tableId);
-    // If marking vrij, also mark associated orders as delivered
-    if (newStatus === 'vrij') {
-      const tableOrders = activeOrders.filter(o => o.table_id === tableId);
-      for (const o of tableOrders) {
-        await supabase.from('orders').update({ status: 'delivered' }).eq('id', o.id);
-      }
-    }
     setTables(prev => prev.map(t => t.id === tableId ? { ...t, status: newStatus } : t));
     setSelectedTable(null);
     fetchData();
@@ -317,22 +326,38 @@ export default function FloorPlanPage() {
   };
 
   const loadOrderItems = async (orderId: string) => {
-    const { data } = await supabase.from('order_items').select('name_snapshot, quantity').eq('order_id', orderId);
+    const { data } = await supabase.from('order_items').select('name_snapshot, quantity, unit_price').eq('order_id', orderId);
     return (data || []) as OrderItemDetail[];
+  };
+
+  const goToKassaForTable = (table: TableItem) => {
+    store.clearOrder();
+    if (effectiveRestaurantId) store.setRestaurant(effectiveRestaurantId, '');
+    if (profile) store.setProfile(profile.id, profile.full_name || 'Gebruiker');
+    store.setTable(table.id, table.table_number);
+    store.setOrderType('dine_in');
+    setSelectedTable(null);
+    navigate('/restaurant/kassa');
+  };
+
+  const goToKassaForTakeaway = () => {
+    store.clearOrder();
+    if (effectiveRestaurantId) store.setRestaurant(effectiveRestaurantId, '');
+    if (profile) store.setProfile(profile.id, profile.full_name || 'Gebruiker');
+    store.setTable(null, null);
+    store.setOrderType('takeaway');
+    navigate('/restaurant/kassa');
   };
 
   const handleTableClick = async (table: TableItem) => {
     if (table.is_takeaway) return;
 
     if (table.status === 'vrij') {
-      // For staff: go to kassa to take order, for owner/admin: show edit options
-      if (role === 'staff') {
-        navigate('/restaurant/kassa');
-      } else {
-        setSelectedTable(table);
-      }
+      // Show popup with Kassa button
+      setOrderDetails([]);
+      setSelectedTable(table);
     } else {
-      // Show table details + order info
+      // bezet or geleverd — show order details
       const order = activeOrders.find(o => o.table_id === table.id);
       if (order) {
         const items = await loadOrderItems(order.id);
@@ -354,6 +379,12 @@ export default function FloorPlanPage() {
     await supabase.from('orders').update({ status: 'delivered' }).eq('id', orderId);
     setAfhaalOrderDetail(null);
     fetchData();
+  };
+
+  const handlePayment = async (method: string) => {
+    if (payingOrderId) {
+      await closeOrderAndFreeTable(payingOrderId, payingTableId);
+    }
   };
 
   const sectionTables = tables.filter(t => !t.is_takeaway && t.floor_section_id === activeSection);
@@ -399,19 +430,6 @@ export default function FloorPlanPage() {
             </div>
           ))}
         </div>
-
-        {canEdit && (
-          <div className="flex gap-2 ml-auto">
-            <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowAddSection(true)}
-              className="px-4 py-2 rounded-lg bg-secondary text-foreground text-sm font-medium flex items-center gap-1.5 hover:bg-secondary/80">
-              <Plus className="w-4 h-4" /> Sectie
-            </motion.button>
-            <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowAddTable(true)}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium flex items-center gap-1.5">
-              <Plus className="w-4 h-4" /> Tafel
-            </motion.button>
-          </div>
-        )}
       </div>
 
       {/* Legend */}
@@ -434,10 +452,8 @@ export default function FloorPlanPage() {
         {/* Ingang — door style */}
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-10">
           <div className="relative w-24 h-10 flex items-end justify-center">
-            {/* Wall gaps */}
             <div className="absolute bottom-0 left-0 w-2 h-full bg-border/60 rounded-t" />
             <div className="absolute bottom-0 right-0 w-2 h-full bg-border/60 rounded-t" />
-            {/* Door arc */}
             <svg width="80" height="40" viewBox="0 0 80 40" className="absolute bottom-0 left-2">
               <path d="M 0 40 A 40 40 0 0 1 40 0" fill="none" stroke="hsl(var(--muted-foreground) / 0.3)" strokeWidth="1.5" strokeDasharray="4 2" />
               <line x1="0" y1="40" x2="40" y2="0" stroke="hsl(var(--muted-foreground) / 0.4)" strokeWidth="1.5" />
@@ -469,21 +485,23 @@ export default function FloorPlanPage() {
             const isActive = !!order;
             return (
               <motion.button key={i} whileTap={{ scale: 0.9 }}
-                onClick={() => { if (order) handleAfhaalClick(order); }}
-                className="w-12 h-12 rounded-full flex items-center justify-center text-xs font-bold text-white border-2 transition-colors"
+                onClick={() => {
+                  if (order) handleAfhaalClick(order);
+                  else goToKassaForTakeaway();
+                }}
+                className="w-12 h-12 rounded-full flex items-center justify-center text-xs font-bold text-white border-2 transition-colors cursor-pointer"
                 style={{
                   backgroundColor: isActive ? 'hsl(0 72% 51%)' : 'hsl(142 76% 36%)',
                   borderColor: isActive ? 'hsl(0 72% 61%)' : 'hsl(142 76% 46%)',
-                  cursor: isActive ? 'pointer' : 'default',
                 }}>
-                {isActive ? `#${order.order_number}` : ''}
+                {isActive ? `#${order.order_number}` : <Plus className="w-4 h-4" />}
               </motion.button>
             );
           })}
         </div>
       </div>
 
-      {/* Table status modal */}
+      {/* Table popup modal */}
       <AnimatePresence>
         {selectedTable && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setSelectedTable(null)}>
@@ -503,82 +521,113 @@ export default function FloorPlanPage() {
               </div>
               <p className="text-sm text-muted-foreground mb-3">{selectedTable.seats} zitplaatsen · {selectedTable.shape === 'round' ? 'Rond' : 'Vierkant'}</p>
 
-              {/* Show active order info */}
-              {(() => {
+              {/* FREE TABLE */}
+              {selectedTable.status === 'vrij' && (
+                <motion.button whileTap={{ scale: 0.95 }} onClick={() => goToKassaForTable(selectedTable)}
+                  className="w-full py-4 rounded-lg bg-primary text-primary-foreground font-bold text-lg">
+                  🛒 Kassa
+                </motion.button>
+              )}
+
+              {/* BEZET TABLE */}
+              {selectedTable.status === 'bezet' && (() => {
                 const order = activeOrders.find(o => o.table_id === selectedTable.id);
-                if (order) return (
-                  <div className="mb-3 p-3 rounded-lg bg-secondary text-sm space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="font-bold text-foreground">Bestelling #{order.order_number}</p>
-                      <TimeAgo since={order.created_at} />
-                    </div>
-                    {orderDetails.length > 0 && (
-                      <ul className="space-y-1">
-                        {orderDetails.map((item, i) => (
-                          <li key={i} className="flex justify-between text-xs text-foreground">
-                            <span>{item.name_snapshot}</span>
-                            <span className="text-muted-foreground">×{item.quantity}</span>
-                          </li>
-                        ))}
-                      </ul>
+                return (
+                  <div className="space-y-3">
+                    {order && (
+                      <div className="p-3 rounded-lg bg-secondary text-sm space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="font-bold text-foreground">Bestelling #{order.order_number}</p>
+                          <TimeAgo since={order.created_at} />
+                        </div>
+                        {orderDetails.length > 0 && (
+                          <ul className="space-y-1">
+                            {orderDetails.map((item, i) => (
+                              <li key={i} className="flex justify-between text-xs text-foreground">
+                                <span>{item.name_snapshot}</span>
+                                <span className="text-muted-foreground">×{item.quantity}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     )}
-                    {/* Add items button for staff */}
-                    {role === 'staff' && (
-                      <motion.button whileTap={{ scale: 0.95 }} onClick={() => {
-                        store.clearOrder();
-                        if (effectiveRestaurantId) store.setRestaurant(effectiveRestaurantId, '');
-                        if (profile) store.setProfile(profile.id, profile.full_name || 'Gebruiker');
-                        store.setTable(selectedTable.id, selectedTable.table_number);
-                        store.setOrderType('dine_in');
-                        setSelectedTable(null);
-                        navigate('/restaurant/kassa');
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={() => goToKassaForTable(selectedTable)}
+                      className="w-full py-3 rounded-lg bg-primary/20 text-primary font-bold text-sm">
+                      + Meer bestellen
+                    </motion.button>
+                    <motion.button whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        if (order) {
+                          setPayingOrderId(order.id);
+                          setPayingTableId(selectedTable.id);
+                          setShowPayment(true);
+                        }
                       }}
-                        className="w-full py-2 rounded-lg bg-primary/20 text-primary font-bold text-xs">
-                        + Items toevoegen
-                      </motion.button>
-                    )}
+                      className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold text-sm">
+                      💰 Afrekenen
+                    </motion.button>
                   </div>
                 );
-                return null;
               })()}
 
-              {/* Status buttons */}
-              <p className="text-xs text-muted-foreground mb-2">Status wijzigen:</p>
-              <div className="space-y-2">
-                {selectedTable.status === 'bezet' && (
-                  <>
-                    <motion.button whileTap={{ scale: 0.95 }}
-                      onClick={() => updateTableStatus(selectedTable.id, 'geleverd')}
-                      className="w-full py-3 rounded-lg text-sm font-bold text-white"
-                      style={{ backgroundColor: STATUS_COLORS.geleverd.bg }}>
-                      🍽️ Bezorgd
+              {/* GELEVERD TABLE */}
+              {selectedTable.status === 'geleverd' && (() => {
+                const order = activeOrders.find(o => o.table_id === selectedTable.id);
+                return (
+                  <div className="space-y-3">
+                    {order && (
+                      <div className="p-3 rounded-lg bg-secondary text-sm space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="font-bold text-foreground">Bestelling #{order.order_number}</p>
+                        </div>
+                        {orderDetails.length > 0 && (
+                          <ul className="space-y-1">
+                            {orderDetails.map((item, i) => (
+                              <li key={i} className="flex justify-between text-xs text-foreground">
+                                <span>{item.name_snapshot}</span>
+                                <span className="text-muted-foreground">×{item.quantity}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={() => {
+                      updateTableStatus(selectedTable.id, 'bezet');
+                      goToKassaForTable(selectedTable);
+                    }}
+                      className="w-full py-3 rounded-lg bg-primary/20 text-primary font-bold text-sm">
+                      + Meer bestellen
                     </motion.button>
                     <motion.button whileTap={{ scale: 0.95 }}
-                      onClick={() => updateTableStatus(selectedTable.id, 'rekening')}
-                      className="w-full py-3 rounded-lg text-sm font-bold text-white"
-                      style={{ backgroundColor: STATUS_COLORS.rekening.bg }}>
-                      💰 Rekening
+                      onClick={() => {
+                        if (order) {
+                          setPayingOrderId(order.id);
+                          setPayingTableId(selectedTable.id);
+                          setShowPayment(true);
+                        }
+                      }}
+                      className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold text-sm">
+                      💰 Betalen
                     </motion.button>
-                  </>
-                )}
-                {(selectedTable.status === 'geleverd' || selectedTable.status === 'rekening') && (
-                  <motion.button whileTap={{ scale: 0.95 }}
-                    onClick={() => updateTableStatus(selectedTable.id, 'vrij')}
-                    className="w-full py-3 rounded-lg text-sm font-bold text-white"
-                    style={{ backgroundColor: STATUS_COLORS.vrij.bg }}>
-                    ✅ Tafel vrijmaken
-                  </motion.button>
-                )}
-                {selectedTable.status === 'vrij' && canEdit && (
-                  <p className="text-xs text-muted-foreground text-center py-2">Tafel is vrij</p>
-                )}
-              </div>
+                  </div>
+                );
+              })()}
+
               <button onClick={() => setSelectedTable(null)}
                 className="w-full mt-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground bg-secondary hover:bg-secondary/80 transition-colors">
                 Sluiten
               </button>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Payment popup */}
+      <AnimatePresence>
+        {showPayment && (
+          <PaymentPopup onPay={handlePayment} onClose={() => { setShowPayment(false); setPayingOrderId(null); setPayingTableId(null); }} />
         )}
       </AnimatePresence>
 
@@ -601,6 +650,18 @@ export default function FloorPlanPage() {
                   ))}
                 </ul>
               )}
+              <motion.button whileTap={{ scale: 0.95 }} onClick={() => {
+                store.clearOrder();
+                if (effectiveRestaurantId) store.setRestaurant(effectiveRestaurantId, '');
+                if (profile) store.setProfile(profile.id, profile.full_name || 'Gebruiker');
+                store.setTable(null, null);
+                store.setOrderType('takeaway');
+                setAfhaalOrderDetail(null);
+                navigate('/restaurant/kassa');
+              }}
+                className="w-full py-3 rounded-lg bg-primary/20 text-primary font-bold text-sm">
+                + Meer toevoegen
+              </motion.button>
               <motion.button whileTap={{ scale: 0.95 }} onClick={() => markAfhaalCollected(afhaalOrderDetail.id)}
                 className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold text-sm">
                 ✅ Bestelling opgehaald
@@ -612,15 +673,11 @@ export default function FloorPlanPage() {
         )}
       </AnimatePresence>
 
-      {/* Add/Edit table modal */}
-      {(showAddTable || editingTable) && effectiveRestaurantId && (
+      {/* Edit table modal (owner/superadmin only) */}
+      {editingTable && effectiveRestaurantId && (
         <TableFormModal sectionId={activeSection} restaurantId={effectiveRestaurantId}
-          existingTable={editingTable || undefined}
-          onClose={() => { setShowAddTable(false); setEditingTable(null); }} onSaved={fetchData} />
-      )}
-      {showAddSection && effectiveRestaurantId && (
-        <SectionFormModal restaurantId={effectiveRestaurantId}
-          onClose={() => setShowAddSection(false)} onSaved={fetchData} />
+          existingTable={editingTable}
+          onClose={() => setEditingTable(null)} onSaved={fetchData} />
       )}
     </div>
   );
