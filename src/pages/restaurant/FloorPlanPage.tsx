@@ -552,8 +552,10 @@ export default function FloorPlanPage() {
     return (data || []) as OrderItemDetail[];
   };
 
-  const closeOrderAndFreeTable = async (orderId: string, tableId: string | null) => {
-    await supabase.from('orders').update({ status: 'delivered' }).eq('id', orderId);
+  const closeOrderAndFreeTable = async (orderId: string | null, tableId: string | null) => {
+    if (orderId) {
+      await supabase.from('orders').update({ status: 'delivered' }).eq('id', orderId);
+    }
     if (tableId) {
       await supabase.from('tables').update({ status: 'vrij' }).eq('id', tableId);
     }
@@ -604,7 +606,6 @@ export default function FloorPlanPage() {
         .from('orders')
         .select('id, order_number, created_at, table_id')
         .eq('table_id', table.id)
-        .in('status', ['pending', 'preparing', 'ready'])
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()).data;
@@ -979,12 +980,10 @@ export default function FloorPlanPage() {
                     </motion.button>
                     <motion.button whileTap={{ scale: 0.95 }}
                       onClick={() => {
-                        if (order) {
-                          setPayingOrderId(order.id);
-                          setPayingTableId(selectedTable.id);
-                          setSelectedTable(null);
-                          setShowPayment(true);
-                        }
+                        setPayingOrderId(order?.id || null);
+                        setPayingTableId(selectedTable.id);
+                        setSelectedTable(null);
+                        setShowPayment(true);
                       }}
                       className="w-full py-3 rounded-xl font-bold text-sm"
                       style={{ backgroundColor: ACCENT, color: '#0f1410' }}>
@@ -1019,12 +1018,10 @@ export default function FloorPlanPage() {
                     </motion.button>
                     <motion.button whileTap={{ scale: 0.95 }}
                       onClick={() => {
-                        if (order) {
-                          setPayingOrderId(order.id);
-                          setPayingTableId(selectedTable.id);
-                          setSelectedTable(null);
-                          setShowPayment(true);
-                        }
+                        setPayingOrderId(order?.id || null);
+                        setPayingTableId(selectedTable.id);
+                        setSelectedTable(null);
+                        setShowPayment(true);
                       }}
                       className="w-full py-3 rounded-xl font-bold text-sm"
                       style={{ backgroundColor: ACCENT, color: '#0f1410' }}>
