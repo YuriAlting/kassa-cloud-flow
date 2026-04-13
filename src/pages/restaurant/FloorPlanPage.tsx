@@ -967,6 +967,7 @@ export default function FloorPlanPage() {
                         if (order) {
                           setPayingOrderId(order.id);
                           setPayingTableId(selectedTable.id);
+                          setSelectedTable(null);
                           setShowPayment(true);
                         }
                       }}
@@ -1006,6 +1007,7 @@ export default function FloorPlanPage() {
                         if (order) {
                           setPayingOrderId(order.id);
                           setPayingTableId(selectedTable.id);
+                          setSelectedTable(null);
                           setShowPayment(true);
                         }
                       }}
