@@ -450,6 +450,7 @@ export default function FloorPlanPage() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState<TableItem | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<ActiveOrder | null>(null);
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
   const [orderDetails, setOrderDetails] = useState<OrderItemDetail[]>([]);
 
@@ -557,6 +558,7 @@ export default function FloorPlanPage() {
       await supabase.from('tables').update({ status: 'vrij' }).eq('id', tableId);
     }
     setSelectedTable(null);
+    setSelectedOrder(null);
     setShowPayment(false);
     setPayingTableId(null);
     setPayingOrderId(null);
@@ -588,18 +590,31 @@ export default function FloorPlanPage() {
       setEditingTable(table);
       return;
     }
+
+    setSelectedTable(table);
+    setSelectedOrder(null);
+
     if (table.status === 'vrij') {
       setOrderDetails([]);
-      setSelectedTable(table);
+      return;
+    }
+
+    const order = activeOrders.find(o => o.table_id === table.id)
+      ?? (await supabase
+        .from('orders')
+        .select('id, order_number, created_at, table_id')
+        .eq('table_id', table.id)
+        .in('status', ['pending', 'preparing', 'ready'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()).data;
+
+    if (order) {
+      setSelectedOrder(order as ActiveOrder);
+      const items = await loadOrderItems(order.id);
+      setOrderDetails(items);
     } else {
-      const order = activeOrders.find(o => o.table_id === table.id);
-      if (order) {
-        const items = await loadOrderItems(order.id);
-        setOrderDetails(items);
-      } else {
-        setOrderDetails([]);
-      }
-      setSelectedTable(table);
+      setOrderDetails([]);
     }
   };
 
@@ -914,7 +929,7 @@ export default function FloorPlanPage() {
       {/* Table popup (view mode) */}
       <AnimatePresence>
         {selectedTable && !editMode && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setSelectedTable(null)}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => { setSelectedTable(null); setSelectedOrder(null); }}>
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
               onClick={e => e.stopPropagation()}
               className="rounded-2xl p-6 w-full max-w-sm shadow-2xl"
@@ -922,12 +937,12 @@ export default function FloorPlanPage() {
 
               <div className="flex items-center justify-between mb-1">
                 <h2 className="text-xl font-bold" style={{ color: '#e5e7eb' }}>Tafel {selectedTable.table_number}</h2>
-                <button onClick={() => setSelectedTable(null)}><X className="w-5 h-5" style={{ color: '#6b7b68' }} /></button>
+                <button onClick={() => { setSelectedTable(null); setSelectedOrder(null); }}><X className="w-5 h-5" style={{ color: '#6b7b68' }} /></button>
               </div>
               <p className="text-sm mb-4" style={{ color: '#6b7b68' }}>
                 {selectedTable.seats} gasten · {selectedTable.shape === 'round' ? 'Rond' : 'Vierkant'}
                 {selectedTable.status !== 'vrij' && (() => {
-                  const ord = activeOrders.find(o => o.table_id === selectedTable.id);
+                  const ord = selectedOrder ?? activeOrders.find(o => o.table_id === selectedTable.id);
                   return ord ? <> · <TimeAgo since={ord.created_at} /></> : null;
                 })()}
               </p>
@@ -943,7 +958,7 @@ export default function FloorPlanPage() {
 
               {/* BEZET */}
               {selectedTable.status === 'bezet' && (() => {
-                const order = activeOrders.find(o => o.table_id === selectedTable.id);
+                const order = selectedOrder ?? activeOrders.find(o => o.table_id === selectedTable.id);
                 return (
                   <div className="space-y-3">
                     {order && orderDetails.length > 0 && (
@@ -981,7 +996,7 @@ export default function FloorPlanPage() {
 
               {/* GELEVERD */}
               {selectedTable.status === 'geleverd' && (() => {
-                const order = activeOrders.find(o => o.table_id === selectedTable.id);
+                const order = selectedOrder ?? activeOrders.find(o => o.table_id === selectedTable.id);
                 return (
                   <div className="space-y-3">
                     {order && orderDetails.length > 0 && (
