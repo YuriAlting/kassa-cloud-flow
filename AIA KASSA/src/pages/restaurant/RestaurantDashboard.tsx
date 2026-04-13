@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UtensilsCrossed, Tag, ShoppingCart, LogOut, LayoutDashboard, Monitor, Map, ClipboardList, Menu, X } from 'lucide-react';
+import { UtensilsCrossed, Tag, ShoppingCart, LogOut, LayoutDashboard, Monitor, Map, ClipboardList, Menu, X, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -58,6 +58,7 @@ export default function RestaurantDashboard() {
         { label: 'Categorieën', path: '/restaurant/categories', icon: Tag },
         { label: 'Bestellingen', path: '/restaurant/orders', icon: ShoppingCart },
         { label: 'Kassa', path: '/restaurant/kassa', icon: Monitor },
+        { label: 'Instellingen', path: '/restaurant/instellingen', icon: Settings },
       ];
 
   return (

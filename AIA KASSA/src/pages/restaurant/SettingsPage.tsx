@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Plus, Trash2, Key, UserCog, Clock } from 'lucide-react';
+import { ArrowLeft, Trash2, Key, UserCog, Clock, Plus, CreditCard } from 'lucide-react';
 
 type Staff = {
   id: string;
@@ -12,135 +12,113 @@ type Staff = {
   pin_code: string;
 };
 
-type Log = {
-  id: string;
-  display_name: string;
-  last_sign_in_at: string;
-};
-
 export default function SettingsPage() {
   const navigate = useNavigate();
   const [staff, setStaff] = useState<Staff[]>([]);
-  const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'staff' | 'log'>('staff');
+  const [tab, setTab] = useState<'staff' | 'log' | 'betaling'>('staff');
+  const [restaurantId, setRestaurantId] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('both');
+  const [savingPayment, setSavingPayment] = useState(false);
 
   // Modals
-  const [showCreate, setShowCreate] = useState(false);
   const [showPin, setShowPin] = useState<Staff | null>(null);
   const [showRole, setShowRole] = useState<Staff | null>(null);
 
   // Form state
-  const [newName, setNewName] = useState('');
-  const [newPin, setNewPin] = useState('');
-  const [newRole, setNewRole] = useState('staff');
   const [editPin, setEditPin] = useState('');
   const [editRole, setEditRole] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const callFunction = async (action: string, payload = {}) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify({ action, ...payload }),
-      }
-    );
-    return res.json();
-  };
-
   const loadStaff = async () => {
     setLoading(true);
-    const result = await callFunction('list_staff');
-    if (result.data) setStaff(result.data);
-    setLoading(false);
-  };
+    const { data: currentUser } = await supabase.auth.getUser();
+    const { data: currentProfile } = await supabase
+      .from('profiles')
+      .select('restaurant_id')
+      .eq('id', currentUser.user!.id)
+      .single();
 
-  const loadLogs = async () => {
-    const result = await callFunction('list_staff');
-    if (result.data) {
-      // Haal last_sign_in_at op via auth
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`,
-          },
-          body: JSON.stringify({ action: 'list_logs' }),
-        }
-      );
-      const logResult = await res.json();
-      if (logResult.data) setLogs(logResult.data);
-    }
+    setRestaurantId(currentProfile!.restaurant_id);
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name, display_name, role, pin_code')
+      .eq('restaurant_id', currentProfile!.restaurant_id)
+      .neq('role', 'superadmin');
+
+    if (data) setStaff(data);
+
+    // Laad betaalmethode instelling
+    const { data: restaurant } = await supabase
+      .from('restaurants')
+      .select('payment_methods')
+      .eq('id', currentProfile!.restaurant_id)
+      .single();
+
+    if (restaurant?.payment_methods) setPaymentMethod(restaurant.payment_methods);
+    setLoading(false);
   };
 
   useEffect(() => {
     loadStaff();
   }, []);
 
-  const handleCreate = async () => {
-    if (!newName || newPin.length !== 4) {
-      setError('Vul een naam en 4-cijferige PIN in.');
-      return;
-    }
-    setSaving(true);
-    setError('');
-    const result = await callFunction('create_user', { display_name: newName, pin: newPin, role: newRole });
-    setSaving(false);
-    if (result.success) {
-      setSuccess('Account aangemaakt!');
-      setShowCreate(false);
-      setNewName(''); setNewPin(''); setNewRole('staff');
-      loadStaff();
-    } else {
-      setError(result.error || 'Fout bij aanmaken.');
-    }
-  };
-
-  const handleDelete = async (member: Staff) => {
-    if (!confirm(`Weet je zeker dat je ${member.display_name} wilt verwijderen?`)) return;
-    await callFunction('delete_user', { user_id: member.id });
-    setSuccess(`${member.display_name} verwijderd.`);
-    loadStaff();
-  };
-
   const handleUpdatePin = async () => {
     if (editPin.length !== 4) { setError('PIN moet 4 cijfers zijn.'); return; }
     setSaving(true);
     setError('');
-    const result = await callFunction('update_pin', { user_id: showPin!.id, new_pin: editPin });
+
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ pin_code: editPin })
+      .eq('id', showPin!.id);
+
     setSaving(false);
-    if (result.success) {
-      setSuccess('PIN gewijzigd!');
+    if (profileError) {
+      setError('Fout bij wijzigen PIN.');
+    } else {
+      setSuccess('PIN gewijzigd! ✓');
       setShowPin(null);
       setEditPin('');
       loadStaff();
-    } else {
-      setError(result.error || 'Fout bij wijzigen.');
     }
   };
 
   const handleUpdateRole = async () => {
     setSaving(true);
     setError('');
-    const result = await callFunction('update_role', { user_id: showRole!.id, new_role: editRole });
+
+    const { error: roleError } = await supabase
+      .from('profiles')
+      .update({ role: editRole })
+      .eq('id', showRole!.id);
+
     setSaving(false);
-    if (result.success) {
-      setSuccess('Rol gewijzigd!');
+    if (roleError) {
+      setError('Fout bij wijzigen rol.');
+    } else {
+      setSuccess('Rol gewijzigd! ✓');
       setShowRole(null);
       loadStaff();
+    }
+  };
+
+  const handleSavePayment = async () => {
+    setSavingPayment(true);
+    const { error } = await supabase
+      .from('restaurants')
+      .update({ payment_methods: paymentMethod })
+      .eq('id', restaurantId);
+
+    setSavingPayment(false);
+    if (error) {
+      setSuccess('');
+      setError('Fout bij opslaan.');
     } else {
-      setError(result.error || 'Fout bij wijzigen.');
+      setSuccess('Betaalmethode opgeslagen! ✓');
     }
   };
 
@@ -174,19 +152,26 @@ export default function SettingsPage() {
             className={`px-4 py-2 rounded-xl font-semibold text-sm transition-colors ${tab === 'staff' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'}`}>
             Medewerkers
           </button>
-          <button onClick={() => { setTab('log'); loadLogs(); }}
+          <button onClick={() => setTab('log')}
             className={`px-4 py-2 rounded-xl font-semibold text-sm transition-colors ${tab === 'log' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'}`}>
             Activiteit log
+          </button>
+          <button onClick={() => setTab('betaling')}
+            className={`px-4 py-2 rounded-xl font-semibold text-sm transition-colors ${tab === 'betaling' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'}`}>
+            Betaling
           </button>
         </div>
 
         {/* Staff tab */}
         {tab === 'staff' && (
           <div className="space-y-4">
-            <button onClick={() => setShowCreate(true)}
-              className="flex items-center gap-2 px-4 py-3 rounded-xl bg-primary text-primary-foreground font-semibold w-full justify-center">
-              <Plus className="w-4 h-4" /> Medewerker toevoegen
-            </button>
+            <div className="surface p-4 border border-dashed border-muted-foreground/30 rounded-xl flex items-center gap-3 opacity-60">
+              <Plus className="w-4 h-4 text-muted-foreground" />
+              <div>
+                <p className="font-semibold text-sm">Medewerker toevoegen</p>
+                <p className="text-xs text-muted-foreground">Beschikbaar na volgende Lovable deployment</p>
+              </div>
+            </div>
 
             {loading ? (
               <div className="flex justify-center py-8">
@@ -197,7 +182,7 @@ export default function SettingsPage() {
                 {staff.map(member => (
                   <div key={member.id} className="surface p-4 flex items-center justify-between">
                     <div>
-                      <p className="font-bold">{member.display_name}</p>
+                      <p className="font-bold">{member.display_name || member.full_name}</p>
                       <p className="text-xs text-muted-foreground capitalize">{member.role} · PIN: {member.pin_code}</p>
                     </div>
                     <div className="flex gap-2">
@@ -209,8 +194,7 @@ export default function SettingsPage() {
                         className="p-2 rounded-lg bg-secondary hover:bg-muted transition-colors" title="Rol wijzigen">
                         <UserCog className="w-4 h-4" />
                       </button>
-                      <button onClick={() => handleDelete(member)}
-                        className="p-2 rounded-lg bg-destructive/20 hover:bg-destructive/40 transition-colors text-destructive" title="Verwijderen">
+                      <button className="p-2 rounded-lg bg-destructive/10 text-destructive/40 cursor-not-allowed" title="Beschikbaar na deployment">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -224,55 +208,60 @@ export default function SettingsPage() {
         {/* Log tab */}
         {tab === 'log' && (
           <div className="space-y-3">
-            {logs.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">Geen activiteit gevonden.</p>
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : staff.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">Geen medewerkers gevonden.</p>
             ) : (
-              logs.map(log => (
-                <div key={log.id} className="surface p-4 flex items-center gap-3">
+              staff.map(member => (
+                <div key={member.id} className="surface p-4 flex items-center gap-3">
                   <Clock className="w-4 h-4 text-muted-foreground" />
                   <div>
-                    <p className="font-semibold">{log.display_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Laatste login: {log.last_sign_in_at ? new Date(log.last_sign_in_at).toLocaleString('nl-NL') : 'Nog niet ingelogd'}
-                    </p>
+                    <p className="font-semibold">{member.display_name || member.full_name}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{member.role}</p>
                   </div>
                 </div>
               ))
             )}
           </div>
         )}
-      </div>
 
-      {/* Modal: Account aanmaken */}
-      <AnimatePresence>
-        {showCreate && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 flex items-center justify-center p-6 z-50">
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
-              className="surface p-6 w-full max-w-sm space-y-4">
-              <h2 className="font-bold text-lg">Medewerker toevoegen</h2>
-              <input type="text" value={newName} onChange={e => setNewName(e.target.value)}
-                placeholder="Naam" className="w-full px-4 py-3 rounded-xl bg-secondary text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
-              <input type="text" value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                placeholder="4-cijferige PIN" className="w-full px-4 py-3 rounded-xl bg-secondary text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
-              <select value={newRole} onChange={e => setNewRole(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-secondary text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
-                <option value="staff">Staff</option>
-                <option value="owner">Owner</option>
-              </select>
-              {error && <p className="text-destructive text-sm">{error}</p>}
-              <div className="flex gap-3">
-                <button onClick={() => { setShowCreate(false); setError(''); }}
-                  className="flex-1 py-3 rounded-xl bg-secondary font-semibold">Annuleren</button>
-                <button onClick={handleCreate} disabled={saving}
-                  className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-semibold disabled:opacity-50">
-                  {saving ? 'Bezig...' : 'Aanmaken'}
+        {/* Betaling tab */}
+        {tab === 'betaling' && (
+          <div className="surface p-6 space-y-5">
+            <div className="flex items-center gap-3">
+              <CreditCard className="w-5 h-5 text-primary" />
+              <h2 className="font-bold text-lg">Betaalmethodes</h2>
+            </div>
+            <p className="text-sm text-muted-foreground">Kies welke betaalmethodes beschikbaar zijn bij het afrekenen.</p>
+
+            <div className="space-y-3">
+              {[
+                { value: 'pin', label: 'Alleen pin', desc: 'Medewerkers kunnen alleen pinnen' },
+                { value: 'cash', label: 'Alleen contant', desc: 'Medewerkers kunnen alleen contant afrekenen' },
+                { value: 'both', label: 'Beide', desc: 'Medewerkers kunnen kiezen tussen pin en contant' },
+              ].map(option => (
+                <button key={option.value} onClick={() => setPaymentMethod(option.value)}
+                  className={`w-full p-4 rounded-xl border-2 text-left transition-colors ${
+                    paymentMethod === option.value
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border bg-secondary hover:bg-muted'
+                  }`}>
+                  <p className="font-semibold">{option.label}</p>
+                  <p className="text-xs text-muted-foreground">{option.desc}</p>
                 </button>
-              </div>
-            </motion.div>
-          </motion.div>
+              ))}
+            </div>
+
+            <button onClick={handleSavePayment} disabled={savingPayment}
+              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold disabled:opacity-50">
+              {savingPayment ? 'Opslaan...' : 'Opslaan'}
+            </button>
+          </div>
         )}
-      </AnimatePresence>
+      </div>
 
       {/* Modal: PIN wijzigen */}
       <AnimatePresence>
@@ -281,9 +270,10 @@ export default function SettingsPage() {
             className="fixed inset-0 bg-black/60 flex items-center justify-center p-6 z-50">
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
               className="surface p-6 w-full max-w-sm space-y-4">
-              <h2 className="font-bold text-lg">PIN wijzigen — {showPin.display_name}</h2>
+              <h2 className="font-bold text-lg">PIN wijzigen — {showPin.display_name || showPin.full_name}</h2>
               <input type="text" value={editPin} onChange={e => setEditPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                placeholder="Nieuwe 4-cijferige PIN" className="w-full px-4 py-3 rounded-xl bg-secondary text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+                placeholder="Nieuwe 4-cijferige PIN"
+                className="w-full px-4 py-3 rounded-xl bg-secondary text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
               {error && <p className="text-destructive text-sm">{error}</p>}
               <div className="flex gap-3">
                 <button onClick={() => { setShowPin(null); setError(''); }}
@@ -305,7 +295,7 @@ export default function SettingsPage() {
             className="fixed inset-0 bg-black/60 flex items-center justify-center p-6 z-50">
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
               className="surface p-6 w-full max-w-sm space-y-4">
-              <h2 className="font-bold text-lg">Rol wijzigen — {showRole.display_name}</h2>
+              <h2 className="font-bold text-lg">Rol wijzigen — {showRole.display_name || showRole.full_name}</h2>
               <select value={editRole} onChange={e => setEditRole(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl bg-secondary text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
                 <option value="staff">Staff</option>
