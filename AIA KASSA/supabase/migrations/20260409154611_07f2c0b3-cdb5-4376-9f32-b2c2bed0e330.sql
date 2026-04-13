@@ -1,0 +1,1 @@
+ALTER TABLE public.orders ADD COLUMN table_id uuid REFERENCES public.tables(id) ON DELETE SET NULL;
