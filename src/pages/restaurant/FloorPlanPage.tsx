@@ -450,6 +450,7 @@ export default function FloorPlanPage() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState<TableItem | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<ActiveOrder | null>(null);
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
   const [orderDetails, setOrderDetails] = useState<OrderItemDetail[]>([]);
 
