@@ -297,22 +297,28 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          display_name: string | null
           full_name: string | null
           id: string
+          pin_code: string | null
           restaurant_id: string | null
           role: Database["public"]["Enums"]["app_role"]
         }
         Insert: {
           created_at?: string
+          display_name?: string | null
           full_name?: string | null
           id: string
+          pin_code?: string | null
           restaurant_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
         }
         Update: {
           created_at?: string
+          display_name?: string | null
           full_name?: string | null
           id?: string
+          pin_code?: string | null
           restaurant_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
         }
@@ -333,6 +339,7 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          payment_methods: string | null
           slug: string
         }
         Insert: {
@@ -341,6 +348,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          payment_methods?: string | null
           slug: string
         }
         Update: {
@@ -349,6 +357,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          payment_methods?: string | null
           slug?: string
         }
         Relationships: []
@@ -416,6 +425,10 @@ export type Database = {
       get_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      verify_pin_login: {
+        Args: { p_display_name: string; p_pin_code: string }
+        Returns: string
       }
     }
     Enums: {
