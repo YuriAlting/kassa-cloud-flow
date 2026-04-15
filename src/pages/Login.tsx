@@ -129,7 +129,7 @@ export default function Login() {
               />
               <motion.button whileTap={{ scale: 0.97 }} type="submit"
                 className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-bold text-lg">
-                Verder â†’
+                Verder →
               </motion.button>
               <div className="text-center">
                 <button type="button" onClick={() => { setStep('superadmin'); setError(''); }}
