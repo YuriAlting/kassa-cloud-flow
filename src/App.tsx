@@ -38,6 +38,7 @@ const App = () => (
               <Route path="orders" element={<OrdersPage />} />
               <Route path="bestellingen" element={<StaffDashboard />} />
               <Route path="plattegrond" element={<FloorPlanPage />} />
+              <Route path="instellingen" element={<SettingsPage />} />
               <Route path="kassa" element={<PosBestelling />} />
             </Route>
             {/* Redirect old POS routes */}

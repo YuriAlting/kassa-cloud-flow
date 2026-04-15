@@ -93,7 +93,7 @@ export default function SettingsPage() {
 
     const { error: roleError } = await supabase
       .from('profiles')
-      .update({ role: editRole })
+      .update({ role: editRole as 'owner' | 'staff' })
       .eq('id', showRole!.id);
 
     setSaving(false);
