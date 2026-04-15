@@ -17,6 +17,7 @@ import CategoriesPage from "./pages/restaurant/CategoriesPage";
 import OrdersPage from "./pages/restaurant/OrdersPage";
 import StaffDashboard from "./pages/restaurant/StaffDashboard";
 import FloorPlanPage from "./pages/restaurant/FloorPlanPage";
+import SettingsPage from "./pages/restaurant/SettingsPage";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
               <Route path="orders" element={<OrdersPage />} />
               <Route path="bestellingen" element={<StaffDashboard />} />
               <Route path="plattegrond" element={<FloorPlanPage />} />
+              <Route path="instellingen" element={<SettingsPage />} />
               <Route path="kassa" element={<PosBestelling />} />
             </Route>
             {/* Redirect old POS routes */}
