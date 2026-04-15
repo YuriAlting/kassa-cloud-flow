@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
@@ -37,9 +37,9 @@ export default function Login() {
     setLoading(true);
     setError('');
 
-    // Lookup via RPC: name + PIN → email
+    // Lookup via RPC: name + PIN â†’ email
     const { data: userEmail, error: rpcError } = await supabase.rpc('verify_pin_login', {
-      p_display_name: name.trim(),
+      p_display_name: name.trim().toLowerCase(),
       p_pin_code: code,
     });
 
@@ -112,7 +112,7 @@ export default function Login() {
 
         <AnimatePresence mode="wait">
 
-          {/* ── NAAM ── */}
+          {/* â”€â”€ NAAM â”€â”€ */}
           {step === 'name' && (
             <motion.form key="name" onSubmit={submitName}
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
@@ -129,7 +129,7 @@ export default function Login() {
               />
               <motion.button whileTap={{ scale: 0.97 }} type="submit"
                 className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-bold text-lg">
-                Verder →
+                Verder â†’
               </motion.button>
               <div className="text-center">
                 <button type="button" onClick={() => { setStep('superadmin'); setError(''); }}
@@ -140,7 +140,7 @@ export default function Login() {
             </motion.form>
           )}
 
-          {/* ── PIN ── */}
+          {/* â”€â”€ PIN â”€â”€ */}
           {step === 'pin' && (
             <motion.div key="pin"
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
@@ -209,7 +209,7 @@ export default function Login() {
             </motion.div>
           )}
 
-          {/* ── SUPERADMIN ── */}
+          {/* â”€â”€ SUPERADMIN â”€â”€ */}
           {step === 'superadmin' && (
             <motion.form key="superadmin" onSubmit={submitSuperadmin}
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
