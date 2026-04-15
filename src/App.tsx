@@ -17,6 +17,7 @@ import CategoriesPage from "./pages/restaurant/CategoriesPage";
 import OrdersPage from "./pages/restaurant/OrdersPage";
 import StaffDashboard from "./pages/restaurant/StaffDashboard";
 import FloorPlanPage from "./pages/restaurant/FloorPlanPage";
+import SettingsPage from "./pages/restaurant/SettingsPage";
 
 const queryClient = new QueryClient();
 
