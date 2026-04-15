@@ -3,7 +3,6 @@ import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
-import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import PosBestelling from "./pages/pos/PosBestelling";
@@ -28,8 +27,10 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<Index />} />
+            {/* Login is nu het startscherm */}
+            <Route path="/" element={<Login />} />
             <Route path="/login" element={<Login />} />
+
             {/* Restaurant Owner/Staff */}
             <Route path="/restaurant" element={<RestaurantDashboard />}>
               <Route path="dashboard" element={<DashboardRouter />} />
@@ -41,13 +42,16 @@ const App = () => (
               <Route path="instellingen" element={<SettingsPage />} />
               <Route path="kassa" element={<PosBestelling />} />
             </Route>
-            {/* Redirect old POS routes */}
+
+            {/* Redirect oude POS routes */}
             <Route path="/pos/dashboard" element={<Navigate to="/restaurant/dashboard" replace />} />
             <Route path="/pos/bestelling" element={<Navigate to="/restaurant/kassa" replace />} />
+
             {/* Superadmin */}
             <Route path="/admin" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/plattegrond" element={<AdminFloorPlan />} />
+
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />
           </Routes>
