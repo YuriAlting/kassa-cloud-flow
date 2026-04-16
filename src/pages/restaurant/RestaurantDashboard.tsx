@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UtensilsCrossed, Tag, ShoppingCart, LogOut, LayoutDashboard, Monitor, Map, ClipboardList, Menu, X } from 'lucide-react';
+import { UtensilsCrossed, ShoppingCart, LogOut, LayoutDashboard, Monitor, Map, ClipboardList, Menu, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -54,15 +54,15 @@ export default function RestaurantDashboard() {
     : [
         { label: 'Overzicht', path: '/restaurant/dashboard', icon: LayoutDashboard },
         { label: 'Plattegrond', path: '/restaurant/plattegrond', icon: Map },
-        { label: 'Menu', path: '/restaurant/menu', icon: UtensilsCrossed },
-        { label: 'Categorieën', path: '/restaurant/categories', icon: Tag },
+        // Menu en Categorieën zijn samengevoegd — Categorieën beheer zit in de Menu pagina als tab
+        { label: 'Menu & Categorieën', path: '/restaurant/menu', icon: UtensilsCrossed },
         { label: 'Bestellingen', path: '/restaurant/orders', icon: ShoppingCart },
         { label: 'Kassa', path: '/restaurant/kassa', icon: Monitor },
       ];
 
   return (
     <div className="min-h-screen flex relative">
-      {/* Mobile hamburger trigger — always visible */}
+      {/* Mobile hamburger */}
       <button
         onClick={() => setSidebarOpen(true)}
         className="fixed top-3 left-3 z-50 w-10 h-10 flex items-center justify-center rounded-lg bg-card border border-border shadow-lg lg:hidden"
@@ -70,7 +70,7 @@ export default function RestaurantDashboard() {
         <Menu className="w-5 h-5 text-foreground" />
       </button>
 
-      {/* Sidebar overlay on mobile */}
+      {/* Overlay */}
       <AnimatePresence>
         {sidebarOpen && (
           <motion.div
@@ -101,21 +101,28 @@ export default function RestaurantDashboard() {
         </div>
 
         <nav className="flex-1 p-3 space-y-1">
-          {navItems.map(item => (
-            <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)}>
-              <motion.div
-                whileTap={{ scale: 0.97 }}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                  location.pathname === item.path
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-secondary-foreground hover:bg-secondary'
-                }`}
-              >
-                <item.icon className="w-5 h-5" />
-                <span className="font-medium text-sm">{item.label}</span>
-              </motion.div>
-            </Link>
-          ))}
+          {navItems.map(item => {
+            // Menu & Categorieën is actief als we op /restaurant/menu of /restaurant/categories zijn
+            const isActive = item.path === '/restaurant/menu'
+              ? location.pathname.startsWith('/restaurant/menu') || location.pathname.startsWith('/restaurant/categories')
+              : location.pathname === item.path;
+
+            return (
+              <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)}>
+                <motion.div
+                  whileTap={{ scale: 0.97 }}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-secondary-foreground hover:bg-secondary'
+                  }`}
+                >
+                  <item.icon className="w-5 h-5" />
+                  <span className="font-medium text-sm">{item.label}</span>
+                </motion.div>
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="p-3 border-t border-border">
@@ -130,7 +137,6 @@ export default function RestaurantDashboard() {
         </div>
       </aside>
 
-      {/* Main content */}
       <main className="flex-1 overflow-y-auto lg:ml-0">
         <Outlet />
       </main>
