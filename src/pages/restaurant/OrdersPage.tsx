@@ -66,11 +66,7 @@ function getDateRange(filter: DateFilter, customFrom: string, customTo: string):
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   const toDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-
-  if (filter === 'vandaag') {
-    const today = toDate(now);
-    return { from: today, to: today };
-  }
+  if (filter === 'vandaag') { const today = toDate(now); return { from: today, to: today }; }
   if (filter === 'week') {
     const day = now.getDay() || 7;
     const monday = new Date(now);
@@ -78,8 +74,7 @@ function getDateRange(filter: DateFilter, customFrom: string, customTo: string):
     return { from: toDate(monday), to: toDate(now) };
   }
   if (filter === 'maand') {
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    return { from: toDate(firstDay), to: toDate(now) };
+    return { from: toDate(new Date(now.getFullYear(), now.getMonth(), 1)), to: toDate(now) };
   }
   return { from: customFrom, to: customTo };
 }
@@ -93,10 +88,9 @@ export default function OrdersPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [newOnlineOrder, setNewOnlineOrder] = useState(false);
 
-  // Filters
+  const today = new Date().toISOString().split('T')[0];
   const [dateFilter, setDateFilter] = useState<DateFilter>('vandaag');
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('alle');
-  const today = new Date().toISOString().split('T')[0];
   const [customFrom, setCustomFrom] = useState(today);
   const [customTo, setCustomTo] = useState(today);
   const [showFilters, setShowFilters] = useState(false);
@@ -110,7 +104,6 @@ export default function OrdersPage() {
     if (!profile?.restaurant_id) return;
     setLoading(true);
     const { from, to } = getDateRange(dateFilter, customFrom, customTo);
-
     const { data } = await supabase
       .from('orders')
       .select('id, order_number, source, status, total_amount, created_at, table_id, created_by, payment_method_id')
@@ -119,12 +112,10 @@ export default function OrdersPage() {
       .lte('created_at', `${to}T23:59:59`)
       .order('created_at', { ascending: false })
       .limit(500);
-
     setOrders(data || []);
     setLoading(false);
   };
 
-  // Realtime
   useEffect(() => {
     if (!profile?.restaurant_id) return;
     const channel = supabase
@@ -144,7 +135,6 @@ export default function OrdersPage() {
     return () => { supabase.removeChannel(channel); };
   }, [profile?.restaurant_id]);
 
-  // Filters toepassen
   const filtered = orders.filter(o => {
     const matchSearch = search.trim() === '' ||
       String(o.order_number).includes(search.trim()) ||
@@ -156,7 +146,6 @@ export default function OrdersPage() {
     return matchSearch && matchPlatform;
   });
 
-  // Statistieken
   const totalRevenue = filtered.reduce((sum, o) => sum + Number(o.total_amount), 0);
   const onlineCount = filtered.filter(o => o.source === 'online').length;
   const posCount = filtered.filter(o => o.source === 'pos').length;
@@ -169,7 +158,7 @@ export default function OrdersPage() {
       order.table_id ? supabase.from('tables').select('name').eq('id', order.table_id).single() : Promise.resolve({ data: null }),
       order.created_by ? supabase.from('profiles').select('full_name').eq('id', order.created_by).single() : Promise.resolve({ data: null }),
       order.payment_method_id ? supabase.from('payment_methods').select('name').eq('id', order.payment_method_id).single() : Promise.resolve({ data: null }),
-      order.source === 'online' ? supabase.from('online_orders' as any).select('customer_name, customer_phone, order_type, street, housenumber, postcode, city, notes, delivery_cost').eq('order_id', order.id).maybeSingle() : Promise.resolve({ data: null }),
+      order.source === 'online' ? (supabase.from('online_orders' as any).select('customer_name, customer_phone, order_type, street, housenumber, postcode, city, notes, delivery_cost').eq('order_id', order.id).maybeSingle() as any) : Promise.resolve({ data: null }),
     ]);
     setSelected({
       ...order, items: itemsData || [],
@@ -189,30 +178,22 @@ export default function OrdersPage() {
 
   const NEXT_STATUS: Record<string, string> = { pending: 'preparing', preparing: 'ready', ready: 'delivered' };
   const NEXT_LABEL: Record<string, string> = { pending: 'Start bereiding', preparing: 'Markeer klaar', ready: 'Bezorgd / Opgehaald' };
-
-  const DATE_LABELS: Record<DateFilter, string> = {
-    vandaag: 'Vandaag', week: 'Deze week', maand: 'Deze maand', aangepast: 'Aangepast',
-  };
+  const DATE_LABELS: Record<DateFilter, string> = { vandaag: 'Vandaag', week: 'Deze week', maand: 'Deze maand', aangepast: 'Aangepast' };
 
   return (
     <div className="p-6 space-y-5">
-
-      {/* Realtime melding */}
       <AnimatePresence>
         {newOnlineOrder && (
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
             className="fixed top-4 right-4 z-50 bg-primary text-primary-foreground px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 font-semibold">
-            <Bell className="w-5 h-5 animate-bounce" />
-            Nieuwe online bestelling binnengekomen!
+            <Bell className="w-5 h-5 animate-bounce" /> Nieuwe online bestelling binnengekomen!
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h2 className="text-xl font-bold">Bestellingen</h2>
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Zoekbalk */}
           <div className="flex items-center gap-2 bg-secondary rounded-lg px-3 py-2">
             <Search className="w-4 h-4 text-muted-foreground shrink-0" />
             <input type="text" placeholder="Zoek op bonnummer..."
@@ -220,24 +201,21 @@ export default function OrdersPage() {
               className="bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none w-40" />
             {search && <button onClick={() => setSearch('')}><X className="w-4 h-4 text-muted-foreground" /></button>}
           </div>
-          {/* Filter knop */}
           <button onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showFilters ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground'}`}>
             <Filter className="w-4 h-4" /> Filters
             {(dateFilter !== 'vandaag' || platformFilter !== 'alle') && (
-              <span className="w-2 h-2 rounded-full bg-primary-foreground" />
+              <span className="w-2 h-2 rounded-full bg-yellow-400" />
             )}
           </button>
         </div>
       </div>
 
-      {/* Filter paneel */}
       <AnimatePresence>
         {showFilters && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
             className="surface p-4 space-y-4 overflow-hidden">
-            <div className="flex flex-wrap gap-4">
-              {/* Datum filter */}
+            <div className="flex flex-wrap gap-6">
               <div>
                 <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5" /> Periode
@@ -250,7 +228,6 @@ export default function OrdersPage() {
                     </button>
                   ))}
                 </div>
-                {/* Aangepaste datumkiezer */}
                 {dateFilter === 'aangepast' && (
                   <div className="flex items-center gap-2 mt-3">
                     <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
@@ -265,18 +242,16 @@ export default function OrdersPage() {
                   </div>
                 )}
               </div>
-
-              {/* Platform filter */}
               <div>
                 <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
                   <ShoppingBag className="w-3.5 h-3.5" /> Platform
                 </p>
                 <div className="flex gap-2">
                   {([
-                    { value: 'alle', label: 'Alle', icon: null },
-                    { value: 'online', label: 'Online', icon: ShoppingBag },
-                    { value: 'pos', label: 'In Zaak', icon: Utensils },
-                  ] as { value: PlatformFilter; label: string; icon: any }[]).map(({ value, label, icon: Icon }) => (
+                    { value: 'alle' as PlatformFilter, label: 'Alle', Icon: null },
+                    { value: 'online' as PlatformFilter, label: 'Online', Icon: ShoppingBag },
+                    { value: 'pos' as PlatformFilter, label: 'In Zaak', Icon: Utensils },
+                  ]).map(({ value, label, Icon }) => (
                     <button key={value} onClick={() => setPlatformFilter(value)}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${platformFilter === value ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground'}`}>
                       {Icon && <Icon className="w-3.5 h-3.5" />}
@@ -286,11 +261,9 @@ export default function OrdersPage() {
                 </div>
               </div>
             </div>
-
-            {/* Reset */}
             {(dateFilter !== 'vandaag' || platformFilter !== 'alle') && (
               <button onClick={() => { setDateFilter('vandaag'); setPlatformFilter('alle'); }}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
                 <X className="w-3 h-3" /> Filters wissen
               </button>
             )}
@@ -298,7 +271,6 @@ export default function OrdersPage() {
         )}
       </AnimatePresence>
 
-      {/* Statistieken */}
       <div className="grid grid-cols-3 gap-3">
         <div className="surface p-4 rounded-xl space-y-1">
           <p className="text-xs text-muted-foreground">Totale omzet</p>
@@ -314,7 +286,6 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Tabel */}
       <div className="surface overflow-hidden">
         <table className="w-full">
           <thead>
@@ -362,7 +333,7 @@ export default function OrdersPage() {
         </table>
         {filtered.length === 0 && !loading && (
           <p className="text-center text-muted-foreground py-12">
-            {search ? `Geen bestellingen gevonden voor "${search}"` : `Geen bestellingen gevonden voor ${DATE_LABELS[dateFilter].toLowerCase()}`}
+            {search ? `Geen bestellingen gevonden voor "${search}"` : `Geen bestellingen voor ${DATE_LABELS[dateFilter].toLowerCase()}`}
           </p>
         )}
         {loading && (
@@ -372,7 +343,6 @@ export default function OrdersPage() {
         )}
       </div>
 
-      {/* Detail modal */}
       <AnimatePresence>
         {selected && (
           <>
@@ -380,7 +350,6 @@ export default function OrdersPage() {
               onClick={() => setSelected(null)} className="fixed inset-0 z-40 bg-black/60" />
             <motion.div initial={{ opacity: 0, x: 60 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 60 }}
               className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-card border-l border-border flex flex-col shadow-2xl">
-              {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div>
                   <h3 className="text-lg font-bold">Bestelling #{selected.order_number}</h3>
@@ -392,7 +361,6 @@ export default function OrdersPage() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {loadingDetail ? (
                   <div className="flex justify-center py-12">
@@ -405,16 +373,11 @@ export default function OrdersPage() {
                         {STATUS_NL[selected.status] || selected.status}
                       </span>
                       <span className="px-3 py-1.5 rounded-full text-sm font-medium bg-secondary text-secondary-foreground border border-border flex items-center gap-1.5">
-                        {selected.source === 'pos'
-                          ? <><Utensils className="w-3.5 h-3.5" /> In de zaak</>
-                          : selected.online_info?.order_type === 'bezorgen'
-                          ? <><Bike className="w-3.5 h-3.5" /> Bezorgen</>
-                          : <><ShoppingBag className="w-3.5 h-3.5" /> Afhalen</>
-                        }
+                        {selected.source === 'pos' ? <><Utensils className="w-3.5 h-3.5" /> In de zaak</>
+                          : selected.online_info?.order_type === 'bezorgen' ? <><Bike className="w-3.5 h-3.5" /> Bezorgen</>
+                          : <><ShoppingBag className="w-3.5 h-3.5" /> Afhalen</>}
                       </span>
                     </div>
-
-                    {/* Online klantgegevens */}
                     {selected.source === 'online' && selected.online_info && (
                       <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-3">
                         <h4 className="font-semibold text-sm flex items-center gap-2 text-primary">
@@ -452,8 +415,6 @@ export default function OrdersPage() {
                         </div>
                       </div>
                     )}
-
-                    {/* POS info */}
                     {selected.source === 'pos' && (
                       <div className="grid grid-cols-2 gap-3">
                         {selected.table_name && (
@@ -480,31 +441,21 @@ export default function OrdersPage() {
                         </div>
                       </div>
                     )}
-
-                    {/* Producten */}
                     <div>
-                      <h4 className="font-semibold mb-3 flex items-center gap-2">
-                        <Package className="w-4 h-4" /> Bestelde producten
-                      </h4>
+                      <h4 className="font-semibold mb-3 flex items-center gap-2"><Package className="w-4 h-4" /> Bestelde producten</h4>
                       <div className="space-y-2">
                         {selected.items.map(item => (
                           <div key={item.id} className="flex items-center justify-between bg-secondary rounded-lg px-4 py-3">
                             <div className="flex items-center gap-3">
-                              <span className="w-7 h-7 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center">
-                                {item.quantity}×
-                              </span>
+                              <span className="w-7 h-7 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center">{item.quantity}×</span>
                               <span className="text-sm font-medium">{item.name_snapshot}</span>
                             </div>
                             <span className="text-sm font-semibold text-primary">€{(item.unit_price * item.quantity).toFixed(2)}</span>
                           </div>
                         ))}
-                        {selected.items.length === 0 && (
-                          <p className="text-sm text-muted-foreground text-center py-4">Geen items gevonden</p>
-                        )}
+                        {selected.items.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Geen items gevonden</p>}
                       </div>
                     </div>
-
-                    {/* Status knop */}
                     {NEXT_STATUS[selected.status] && (
                       <motion.button whileTap={{ scale: 0.97 }}
                         onClick={() => updateStatus(selected.id, NEXT_STATUS[selected.status])}
@@ -515,7 +466,6 @@ export default function OrdersPage() {
                   </>
                 )}
               </div>
-
               <div className="border-t border-border px-6 py-4">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground font-medium">Totaal</span>
