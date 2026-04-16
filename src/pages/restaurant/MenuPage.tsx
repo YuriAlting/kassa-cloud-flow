@@ -57,7 +57,7 @@ export default function MenuPage() {
     setItems(menuData || []);
     setCategories(catData || []);
     // Open alle categorieën standaard
-    if (catData) setExpandedCats(new Set(catData.map(c => c.id)));
+    if (catData) setExpandedCats(new Set());
     setLoading(false);
   }
 
