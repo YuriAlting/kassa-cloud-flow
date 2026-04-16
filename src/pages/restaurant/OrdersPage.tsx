@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, ChevronRight, Package, Clock, User, MapPin, CreditCard, Utensils, ShoppingBag } from 'lucide-react';
+import { Search, X, ChevronRight, Package, Clock, User, MapPin, CreditCard, Utensils, ShoppingBag, Phone, Bike, Bell } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -9,6 +9,18 @@ interface OrderItem {
   name_snapshot: string;
   quantity: number;
   unit_price: number;
+}
+
+interface OnlineOrder {
+  customer_name: string;
+  customer_phone: string;
+  order_type: string;
+  street: string | null;
+  housenumber: string | null;
+  postcode: string | null;
+  city: string | null;
+  notes: string | null;
+  delivery_cost: number;
 }
 
 interface Order {
@@ -28,6 +40,7 @@ interface OrderDetail extends Order {
   table_name?: string;
   staff_name?: string;
   payment_method?: string;
+  online_info?: OnlineOrder | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -53,9 +66,12 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<OrderDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [newOnlineOrder, setNewOnlineOrder] = useState(false);
 
   useEffect(() => {
     if (!profile?.restaurant_id) return;
+
+    // Initieel laden
     supabase
       .from('orders')
       .select('id, order_number, source, status, total_amount, created_at, table_id, created_by, payment_method_id')
@@ -66,6 +82,33 @@ export default function OrdersPage() {
         setOrders(data || []);
         setLoading(false);
       });
+
+    // Realtime — nieuwe bestellingen van bestelsite verschijnen direct
+    const channel = supabase
+      .channel('orders-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'orders',
+          filter: `restaurant_id=eq.${profile.restaurant_id}`,
+        },
+        (payload) => {
+          const newOrder = payload.new as Order;
+          setOrders(prev => [newOrder, ...prev]);
+          // Toon melding bij online bestelling
+          if (newOrder.source === 'online') {
+            setNewOnlineOrder(true);
+            setTimeout(() => setNewOnlineOrder(false), 5000);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [profile?.restaurant_id]);
 
   const filtered = orders.filter(o =>
@@ -79,7 +122,7 @@ export default function OrdersPage() {
     setLoadingDetail(true);
     setSelected({ ...order, items: [] });
 
-    const [{ data: itemsData }, { data: tableData }, { data: staffData }, { data: payData }] = await Promise.all([
+    const [{ data: itemsData }, { data: tableData }, { data: staffData }, { data: payData }, { data: onlineData }] = await Promise.all([
       supabase.from('order_items').select('id, name_snapshot, quantity, unit_price').eq('order_id', order.id),
       order.table_id
         ? supabase.from('tables').select('name').eq('id', order.table_id).single()
@@ -90,6 +133,10 @@ export default function OrdersPage() {
       order.payment_method_id
         ? supabase.from('payment_methods').select('name').eq('id', order.payment_method_id).single()
         : Promise.resolve({ data: null }),
+      // Haal klantgegevens op voor online bestellingen
+      order.source === 'online'
+        ? supabase.from('online_orders').select('customer_name, customer_phone, order_type, street, housenumber, postcode, city, notes, delivery_cost').eq('order_id', order.id).maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
 
     setSelected({
@@ -98,12 +145,47 @@ export default function OrdersPage() {
       table_name: (tableData as any)?.name,
       staff_name: (staffData as any)?.full_name,
       payment_method: (payData as any)?.name,
+      online_info: onlineData as OnlineOrder | null,
     });
     setLoadingDetail(false);
   };
 
+  const updateStatus = async (orderId: string, newStatus: string) => {
+    await supabase.from('orders').update({ status: newStatus }).eq('id', orderId);
+    setSelected(prev => prev ? { ...prev, status: newStatus } : null);
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+  };
+
+  const NEXT_STATUS: Record<string, string> = {
+    pending: 'preparing',
+    preparing: 'ready',
+    ready: 'delivered',
+  };
+
+  const NEXT_LABEL: Record<string, string> = {
+    pending: 'Start bereiding',
+    preparing: 'Markeer klaar',
+    ready: 'Bezorgd / Opgehaald',
+  };
+
   return (
     <div className="p-6 space-y-5">
+
+      {/* Realtime melding nieuwe online bestelling */}
+      <AnimatePresence>
+        {newOnlineOrder && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-4 right-4 z-50 bg-primary text-primary-foreground px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 font-semibold"
+          >
+            <Bell className="w-5 h-5 animate-bounce" />
+            Nieuwe online bestelling binnengekornen!
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-xl font-bold">Bestellingen</h2>
         <div className="flex items-center gap-2 bg-secondary rounded-lg px-3 py-2 flex-1 max-w-xs">
@@ -141,9 +223,14 @@ export default function OrdersPage() {
                 key={o.id}
                 whileHover={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
                 onClick={() => openDetail(o)}
-                className="border-b border-border last:border-0 cursor-pointer"
+                className={`border-b border-border last:border-0 cursor-pointer ${o.source === 'online' && o.status === 'pending' ? 'bg-yellow-500/5' : ''}`}
               >
-                <td className="px-5 py-3 font-medium">#{o.order_number}</td>
+                <td className="px-5 py-3 font-medium">
+                  #{o.order_number}
+                  {o.source === 'online' && o.status === 'pending' && (
+                    <span className="ml-2 w-2 h-2 rounded-full bg-yellow-400 inline-block animate-pulse" />
+                  )}
+                </td>
                 <td className="px-5 py-3 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1.5">
                     {o.source === 'pos' ? <Utensils className="w-3.5 h-3.5" /> : <ShoppingBag className="w-3.5 h-3.5" />}
@@ -218,46 +305,92 @@ export default function OrdersPage() {
                       <span className="px-3 py-1.5 rounded-full text-sm font-medium bg-secondary text-secondary-foreground border border-border flex items-center gap-1.5">
                         {selected.source === 'pos'
                           ? <><Utensils className="w-3.5 h-3.5" /> In de zaak</>
-                          : <><ShoppingBag className="w-3.5 h-3.5" /> Meenemen / Bezorging</>
+                          : selected.online_info?.order_type === 'bezorgen'
+                          ? <><Bike className="w-3.5 h-3.5" /> Bezorgen</>
+                          : <><ShoppingBag className="w-3.5 h-3.5" /> Afhalen</>
                         }
                       </span>
                     </div>
 
-                    {/* Info blokken */}
-                    <div className="grid grid-cols-2 gap-3">
-                      {selected.table_name && (
-                        <div className="bg-secondary rounded-xl p-4 space-y-1">
-                          <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium">
-                            <MapPin className="w-3.5 h-3.5" /> Tafel
+                    {/* Online klantgegevens */}
+                    {selected.source === 'online' && selected.online_info && (
+                      <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-3">
+                        <h4 className="font-semibold text-sm flex items-center gap-2 text-primary">
+                          <User className="w-4 h-4" /> Klantgegevens
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            <span className="font-semibold">{selected.online_info.customer_name}</span>
                           </div>
-                          <p className="font-semibold">{selected.table_name}</p>
-                        </div>
-                      )}
-                      {selected.staff_name && (
-                        <div className="bg-secondary rounded-xl p-4 space-y-1">
-                          <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium">
-                            <User className="w-3.5 h-3.5" /> Medewerker
+                          <div className="flex items-center gap-2">
+                            <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            <a href={`tel:${selected.online_info.customer_phone}`} className="text-primary hover:underline">
+                              {selected.online_info.customer_phone}
+                            </a>
                           </div>
-                          <p className="font-semibold">{selected.staff_name}</p>
+                          {selected.online_info.order_type === 'bezorgen' && (
+                            <div className="flex items-start gap-2">
+                              <MapPin className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                              <span>
+                                {selected.online_info.street} {selected.online_info.housenumber},<br />
+                                {selected.online_info.postcode} {selected.online_info.city}
+                              </span>
+                            </div>
+                          )}
+                          {selected.online_info.notes && (
+                            <div className="flex items-start gap-2">
+                              <Clock className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                              <span className="text-muted-foreground italic">{selected.online_info.notes}</span>
+                            </div>
+                          )}
+                          {selected.online_info.delivery_cost > 0 && (
+                            <div className="flex items-center gap-2 pt-1 border-t border-primary/10">
+                              <Bike className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                              <span className="text-muted-foreground">Bezorgkosten: €{Number(selected.online_info.delivery_cost).toFixed(2)}</span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {selected.payment_method && (
-                        <div className="bg-secondary rounded-xl p-4 space-y-1">
-                          <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium">
-                            <CreditCard className="w-3.5 h-3.5" /> Betaalmethode
-                          </div>
-                          <p className="font-semibold">{selected.payment_method}</p>
-                        </div>
-                      )}
-                      <div className="bg-secondary rounded-xl p-4 space-y-1">
-                        <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium">
-                          <Clock className="w-3.5 h-3.5" /> Besteltijd
-                        </div>
-                        <p className="font-semibold">
-                          {new Date(selected.created_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
                       </div>
-                    </div>
+                    )}
+
+                    {/* POS info blokken */}
+                    {selected.source === 'pos' && (
+                      <div className="grid grid-cols-2 gap-3">
+                        {selected.table_name && (
+                          <div className="bg-secondary rounded-xl p-4 space-y-1">
+                            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium">
+                              <MapPin className="w-3.5 h-3.5" /> Tafel
+                            </div>
+                            <p className="font-semibold">{selected.table_name}</p>
+                          </div>
+                        )}
+                        {selected.staff_name && (
+                          <div className="bg-secondary rounded-xl p-4 space-y-1">
+                            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium">
+                              <User className="w-3.5 h-3.5" /> Medewerker
+                            </div>
+                            <p className="font-semibold">{selected.staff_name}</p>
+                          </div>
+                        )}
+                        {selected.payment_method && (
+                          <div className="bg-secondary rounded-xl p-4 space-y-1">
+                            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium">
+                              <CreditCard className="w-3.5 h-3.5" /> Betaalmethode
+                            </div>
+                            <p className="font-semibold">{selected.payment_method}</p>
+                          </div>
+                        )}
+                        <div className="bg-secondary rounded-xl p-4 space-y-1">
+                          <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium">
+                            <Clock className="w-3.5 h-3.5" /> Besteltijd
+                          </div>
+                          <p className="font-semibold">
+                            {new Date(selected.created_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Producten */}
                     <div>
@@ -283,6 +416,17 @@ export default function OrdersPage() {
                         )}
                       </div>
                     </div>
+
+                    {/* Status bijwerken knop */}
+                    {NEXT_STATUS[selected.status] && (
+                      <motion.button
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => updateStatus(selected.id, NEXT_STATUS[selected.status])}
+                        className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm"
+                      >
+                        {NEXT_LABEL[selected.status]}
+                      </motion.button>
+                    )}
                   </>
                 )}
               </div>
