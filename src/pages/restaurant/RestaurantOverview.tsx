@@ -97,7 +97,7 @@ export default function RestaurantOverview() {
         } else if (o.payment_methods?.name) {
           name = o.payment_methods.name;
         } else if (!o.payment_method_id) {
-          name = 'Onbekend';
+          name = o.source === 'pos' ? 'Kassa (niet geregistreerd)' : 'Onbekend';
         }
         if (!counts[name]) counts[name] = { count: 0, revenue: 0 };
         counts[name].count += 1;
@@ -306,7 +306,7 @@ export default function RestaurantOverview() {
                     </Pie>
                     <Tooltip
                       contentStyle={{ backgroundColor: 'hsl(0 0% 8%)', border: '1px solid hsl(0 0% 15%)', borderRadius: '8px', color: 'hsl(0 0% 95%)' }}
-                      formatter={(v: number, name: string, props: any) => [`${v} bestellingen · €${props.payload.revenue?.toFixed(2)}`]}
+                      formatter={(v: number, _name: string, props: any) => [`${v} bestellingen · €${props?.payload?.revenue?.toFixed(2) ?? '0.00'}`, props?.payload?.name ?? '']}
                     />
                   </PieChart>
                 </ResponsiveContainer>
